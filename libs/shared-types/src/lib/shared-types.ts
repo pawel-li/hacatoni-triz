@@ -25,6 +25,27 @@ export interface PromptRunCandidate {
   fallback?: boolean;
 }
 
+export interface PromptRunScoreCriterion {
+  name: string;
+  score: number;
+  weight: number;
+}
+
+export interface PromptRunCandidateScore {
+  id: string;
+  tytul: string;
+  score: number;
+  criteria: PromptRunScoreCriterion[];
+  rationale: string;
+}
+
+export interface PromptRunEvaluation {
+  overallScore: number;
+  bestCandidateId: string;
+  verdict: string;
+  candidateScores: PromptRunCandidateScore[];
+}
+
 export interface PromptRunReasoningTrail {
   method: 'biomimicry';
   problem: string;
@@ -32,6 +53,7 @@ export interface PromptRunReasoningTrail {
   similarity_ranking: PromptRunRankingRow[];
   selected_mechanisms: string[];
   candidates: PromptRunCandidate[];
+  evaluation?: PromptRunEvaluation;
 }
 
 export type PromptRunEventType =
@@ -42,6 +64,7 @@ export type PromptRunEventType =
   | 'ranking'
   | 'mechanism_selected'
   | 'candidate'
+  | 'scored'
   | 'run_completed'
   | 'error';
 
@@ -54,6 +77,7 @@ export interface PromptRunEventPayload {
   ranking?: PromptRunRankingRow[];
   mechanism?: PromptRunMechanism;
   candidate?: PromptRunCandidate;
+  evaluation?: PromptRunEvaluation;
   reasoningTrail?: PromptRunReasoningTrail;
   detail?: string;
 }

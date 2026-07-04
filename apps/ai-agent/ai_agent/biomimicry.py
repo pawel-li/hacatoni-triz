@@ -151,6 +151,13 @@ def stream_biomimicry_run(
             {"candidate": candidate},
         )
 
+    evaluation = _evaluate_candidates(candidates, ranking)
+    yield _event(
+        "scored",
+        f"Best solution scored {evaluation['overallScore']}/100.",
+        {"evaluation": evaluation},
+    )
+
     reasoning_trail = {
         "method": "biomimicry",
         "problem": normalized_problem,
@@ -158,12 +165,94 @@ def stream_biomimicry_run(
         "similarity_ranking": ranking,
         "selected_mechanisms": selected_ids,
         "candidates": candidates,
+        "evaluation": evaluation,
     }
     yield _event(
         "run_completed",
         "Biomimicry run completed.",
         {"reasoningTrail": reasoning_trail},
     )
+
+
+def _evaluate_candidates(
+    candidates: list[dict[str, str]], ranking: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """Score each generated candidate and pick the strongest solution."""
+    similarity_by_id = {row["id"]: float(row["similarity"]) for row in ranking}
+    max_similarity = max(similarity_by_id.values(), default=0.0)
+
+    weights = {"bio_match": 0.45, "detail": 0.30, "feasibility": 0.25}
+    candidate_scores: list[dict[str, Any]] = []
+
+    for candidate in candidates:
+        similarity = similarity_by_id.get(candidate["id"], 0.0)
+        bio_match = similarity / max_similarity if max_similarity > 0 else 0.0
+        detail = min(len(candidate.get("opis", "")) / 220.0, 1.0)
+        feasibility = 0.45 if candidate.get("fallback") else 1.0
+
+        criteria = [
+            {
+                "name": "Dopasowanie biomimetyczne",
+                "score": round(bio_match * 100),
+                "weight": weights["bio_match"],
+            },
+            {
+                "name": "Szczegolowosc rozwiazania",
+                "score": round(detail * 100),
+                "weight": weights["detail"],
+            },
+            {
+                "name": "Wykonalnosc",
+                "score": round(feasibility * 100),
+                "weight": weights["feasibility"],
+            },
+        ]
+        score = round(
+            (
+                bio_match * weights["bio_match"]
+                + detail * weights["detail"]
+                + feasibility * weights["feasibility"]
+            )
+            * 100
+        )
+        candidate_scores.append(
+            {
+                "id": candidate["id"],
+                "tytul": candidate.get("tytul", ""),
+                "score": score,
+                "criteria": criteria,
+                "rationale": _score_rationale(score, candidate),
+            }
+        )
+
+    best = max(candidate_scores, key=lambda item: item["score"], default=None)
+    overall_score = best["score"] if best else 0
+    best_id = best["id"] if best else ""
+
+    return {
+        "overallScore": overall_score,
+        "bestCandidateId": best_id,
+        "verdict": _score_verdict(overall_score),
+        "candidateScores": candidate_scores,
+    }
+
+
+def _score_rationale(score: int, candidate: dict[str, str]) -> str:
+    if candidate.get("fallback"):
+        return "Wygenerowano lokalny fallback (brak GEMINI_API_KEY) - obniza wykonalnosc."
+    if score >= 75:
+        return "Silne dopasowanie mechanizmu i konkretny, wdrozalny opis rozwiazania."
+    if score >= 55:
+        return "Rozsadne rozwiazanie, ktore zyskaloby na doprecyzowaniu materialu i procesu."
+    return "Slabe dopasowanie funkcjonalne - rozwaz inny mechanizm biomimetyczny."
+
+
+def _score_verdict(overall_score: int) -> str:
+    if overall_score >= 75:
+        return "Silne rozwiazanie gotowe do prototypowania."
+    if overall_score >= 55:
+        return "Obiecujace rozwiazanie, wymaga dopracowania."
+    return "Slabe dopasowanie - rozwaz inne mechanizmy."
 
 
 def _rank_mechanisms(function_query: str) -> tuple[list[dict[str, Any]], int, int]:

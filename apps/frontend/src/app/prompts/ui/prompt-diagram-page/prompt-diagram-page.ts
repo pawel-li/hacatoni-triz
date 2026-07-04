@@ -2,16 +2,31 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  ElementRef,
+  afterRenderEffect,
   computed,
   effect,
   inject,
   signal,
+  viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterModule } from '@angular/router';
+import {
+  NgDiagramComponent,
+  NgDiagramNodeTemplateMap,
+  initializeModel,
+  provideNgDiagram,
+} from 'ng-diagram';
+import type { Edge, Node } from 'ng-diagram';
 import { catchError, map, of, startWith, switchMap } from 'rxjs';
 import { PromptApiService } from '../../data/prompt-api.service';
 import { Prompt, PromptRunEvent } from '../../data/types';
+import {
+  RunCardNodeComponent,
+  RunCardNodeData,
+  RunCardVariant,
+} from '../run-card-node/run-card-node';
 
 type PromptPageState = {
   loading: boolean;
@@ -29,16 +44,20 @@ type DiagramCard = {
   badge?: string;
 };
 
+type LogTone = 'muted' | 'info' | 'warn' | 'success' | 'error';
+
 type RunLogEntry = {
   id: string;
-  timestamp: string;
+  time: string;
   type: string;
+  tone: LogTone;
   message: string;
 };
 
 @Component({
   selector: 'app-prompt-diagram-page',
-  imports: [RouterModule],
+  imports: [RouterModule, NgDiagramComponent],
+  providers: [provideNgDiagram()],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main
@@ -82,98 +101,57 @@ type RunLogEntry = {
         class="mx-auto mt-4 grid min-h-[68dvh] w-full max-w-6xl flex-1 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_340px]"
         aria-label="Prompt run workspace"
       >
-        <div class="diagram-panel" aria-label="Live prompt diagram">
-          <div class="diagram-spine" aria-label="Notebook pipeline stages">
-            @for (card of spineCards(); track card.id) {
-              <article class="diagram-card diagram-card--spine">
-                <p class="diagram-card__stage">{{ card.stage }}</p>
-                <h2>{{ card.title }}</h2>
-                <p class="diagram-card__subtitle">{{ card.subtitle }}</p>
-                @if (card.detail) {
-                  <p class="diagram-card__detail">{{ card.detail }}</p>
-                }
-                @if (card.meta) {
-                  <p class="diagram-card__meta">{{ card.meta }}</p>
-                }
-              </article>
-            }
-          </div>
-
-          @if (mechanismCards().length) {
-            <section class="diagram-fanout" aria-label="Selected biomimicry mechanisms">
-              <p class="diagram-section-label">Selected mechanisms</p>
-              <div class="diagram-grid">
-                @for (card of mechanismCards(); track card.id) {
-                  <article class="diagram-card diagram-card--mechanism">
-                    <p class="diagram-card__stage">{{ card.stage }}</p>
-                    <h3>{{ card.title }}</h3>
-                    <p class="diagram-card__subtitle">{{ card.subtitle }}</p>
-                    <p class="diagram-card__detail">{{ card.detail }}</p>
-                  </article>
-                }
-              </div>
-            </section>
-          }
-
-          @if (candidateCards().length) {
-            <section class="diagram-fanout" aria-label="Generated concept candidates">
-              <p class="diagram-section-label">Generated candidates</p>
-              <div class="diagram-grid">
-                @for (card of candidateCards(); track card.id) {
-                  <article class="diagram-card diagram-card--candidate">
-                    <div class="diagram-card__header-row">
-                      <p class="diagram-card__stage">{{ card.stage }}</p>
-                      @if (card.badge) {
-                        <span class="diagram-card__badge">{{ card.badge }}</span>
-                      }
-                    </div>
-                    <h3>{{ card.title }}</h3>
-                    <p class="diagram-card__subtitle">{{ card.subtitle }}</p>
-                    <p class="diagram-card__detail">{{ card.detail }}</p>
-                  </article>
-                }
-              </div>
-            </section>
-          }
-
-          @if (finalCard(); as card) {
-            <article class="diagram-card diagram-card--terminal">
-              <p class="diagram-card__stage">{{ card.stage }}</p>
-              <h2>{{ card.title }}</h2>
-              <p class="diagram-card__subtitle">{{ card.subtitle }}</p>
-              <p class="diagram-card__detail">{{ card.detail }}</p>
-            </article>
-          }
+        <div class="diagram-panel" role="region" aria-label="Live prompt diagram">
+          <ng-diagram [model]="model" [nodeTemplateMap]="nodeTemplateMap" />
         </div>
 
-        <aside class="flex min-h-[340px] flex-col border border-dotted border-[#efe8da]/55" aria-label="Prompt run logs">
-          <div class="border-b border-dotted border-[#efe8da]/35 px-4 py-3">
-            <p class="m-0 text-xs font-bold uppercase tracking-[0.08em] text-[#efe8da]/55">Status</p>
-            <p class="m-0 mt-1 text-lg font-bold text-[#efe8da]">{{ runStatus() }}</p>
+        <aside class="log-panel" aria-label="Prompt run logs">
+          <div class="log-panel__header">
+            <div class="log-panel__title-row">
+              <p class="log-panel__label">Run log</p>
+              <span class="log-panel__count">{{ logs().length }} events</span>
+            </div>
+            <p class="log-status" [class]="'log-status log-status--' + statusTone()">
+              <span class="log-status__dot" aria-hidden="true"></span>
+              {{ runStatus() }}
+            </p>
             @if (agentProblem(); as problem) {
-              <p class="m-0 mt-3 text-xs font-bold uppercase tracking-[0.08em] text-[#efe8da]/45">Agent input</p>
-              <p class="m-0 mt-1 max-h-24 overflow-auto whitespace-pre-wrap text-sm leading-5 text-[#efe8da]/75">{{ problem }}</p>
+              <details class="log-agent">
+                <summary>Agent input</summary>
+                <p>{{ problem }}</p>
+              </details>
             }
           </div>
 
-          <div class="min-h-0 flex-1 space-y-3 overflow-auto px-4 py-4" aria-live="polite">
+          <div
+            #logScroll
+            class="log-panel__scroll"
+            aria-live="polite"
+            (scroll)="onLogScroll($event)"
+          >
             @if (logs().length) {
-              @for (log of logs(); track log.id) {
-                <article class="border-l-2 border-[#efe8da]/35 pl-3">
-                  <p class="m-0 text-[0.68rem] font-bold uppercase tracking-[0.08em] text-[#efe8da]/45">
-                    {{ log.type }} · {{ log.timestamp }}
-                  </p>
-                  <p class="m-0 mt-1 text-sm leading-6 text-[#efe8da]/82">{{ log.message }}</p>
-                </article>
-              }
+              <ol class="log-list">
+                @for (log of logs(); track log.id) {
+                  <li [class]="'log-entry log-entry--' + log.tone">
+                    <p class="log-entry__meta">
+                      <span class="log-entry__type">{{ log.type }}</span>
+                      @if (log.time) {
+                        <time class="log-entry__time">{{ log.time }}</time>
+                      }
+                    </p>
+                    <p class="log-entry__message">{{ log.message }}</p>
+                  </li>
+                }
+              </ol>
             } @else {
-              <p class="m-0 text-sm leading-6 text-[#efe8da]/55">Waiting for ai-agent events...</p>
+              <div class="log-empty" role="status">
+                <span class="log-empty__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+                <p>Waiting for ai-agent events…</p>
+              </div>
             }
 
             @if (streamError(); as err) {
-              <p class="m-0 border border-[#a43f3f] bg-[#a43f3f]/10 px-3 py-2 text-sm text-[#ffd1d1]" role="alert">
-                {{ err }}
-              </p>
+              <p class="log-stream-error" role="alert">{{ err }}</p>
             }
           </div>
         </aside>
@@ -188,133 +166,268 @@ type RunLogEntry = {
     }
 
     .diagram-panel {
+      display: flex;
       min-height: 68dvh;
       max-height: 76dvh;
-      overflow: auto;
+      overflow: hidden;
       border: 1px dotted rgb(239 232 218 / 55%);
-      padding: 24px;
       background:
         linear-gradient(rgb(239 232 218 / 5%) 1px, transparent 1px),
         linear-gradient(90deg, rgb(239 232 218 / 5%) 1px, transparent 1px);
       background-size: 28px 28px;
     }
 
-    .diagram-spine {
-      display: grid;
-      justify-items: center;
-      gap: 26px;
-      position: relative;
+    .diagram-panel ng-diagram {
+      flex: 1;
+      min-width: 0;
+      --ngd-diagram-background-color: transparent;
+      --ngd-background-dot-color: rgb(239 232 218 / 30%);
     }
 
-    .diagram-spine::before {
-      content: '';
-      position: absolute;
-      top: 34px;
-      bottom: 34px;
-      width: 1px;
-      border-left: 1px dotted rgb(239 232 218 / 45%);
-    }
-
-    .diagram-card {
-      width: min(100%, 520px);
-      border: 1px dotted rgb(17 19 18 / 75%);
-      background: #f4f2e8;
-      color: #111312;
-      padding: 18px 20px;
-      position: relative;
-      box-shadow: 0 18px 34px rgb(0 0 0 / 38%);
-    }
-
-    .diagram-card--spine {
-      z-index: 1;
-    }
-
-    .diagram-card--mechanism {
-      background: #f7efd0;
-    }
-
-    .diagram-card--candidate {
-      background: #e7f0e2;
-    }
-
-    .diagram-card--terminal {
-      margin: 28px auto 0;
-      background: #dfe8f0;
-    }
-
-    .diagram-card__header-row {
+    .log-panel {
       display: flex;
-      align-items: center;
+      flex-direction: column;
+      min-height: 340px;
+      max-height: 76dvh;
+      border: 1px dotted rgb(239 232 218 / 55%);
+      background: rgb(239 232 218 / 3%);
+    }
+
+    .log-panel__header {
+      border-bottom: 1px dotted rgb(239 232 218 / 35%);
+      padding: 12px 16px;
+    }
+
+    .log-panel__title-row {
+      display: flex;
+      align-items: baseline;
       justify-content: space-between;
       gap: 12px;
     }
 
-    .diagram-card__stage,
-    .diagram-section-label,
-    .diagram-card__badge {
+    .log-panel__label {
       margin: 0;
-      font-size: 0.67rem;
+      font-size: 0.7rem;
       font-weight: 800;
       letter-spacing: 0.08em;
       text-transform: uppercase;
-      color: rgb(17 19 18 / 58%);
+      color: rgb(239 232 218 / 55%);
     }
 
-    .diagram-card__badge {
-      border: 1px dotted rgb(17 19 18 / 45%);
-      padding: 2px 7px;
+    .log-panel__count {
+      font-size: 0.7rem;
+      font-variant-numeric: tabular-nums;
+      color: rgb(239 232 218 / 45%);
+    }
+
+    .log-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin: 8px 0 0;
+      border: 1px dotted rgb(239 232 218 / 40%);
+      padding: 4px 10px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #efe8da;
+    }
+
+    .log-status__dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgb(239 232 218 / 45%);
+      flex-shrink: 0;
+    }
+
+    .log-status--running .log-status__dot {
+      background: #e8c258;
+      animation: statusPulse 1.2s ease-in-out infinite;
+    }
+
+    .log-status--done {
+      border-color: rgb(143 191 127 / 55%);
+    }
+
+    .log-status--done .log-status__dot {
+      background: #8fbf7f;
+    }
+
+    .log-status--failed {
+      border-color: rgb(212 106 106 / 65%);
+      color: #ffd1d1;
+    }
+
+    .log-status--failed .log-status__dot {
+      background: #d46a6a;
+    }
+
+    .log-agent {
+      margin-top: 10px;
+    }
+
+    .log-agent summary {
+      cursor: pointer;
+      font-size: 0.7rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgb(239 232 218 / 45%);
+      user-select: none;
+    }
+
+    .log-agent summary:hover {
+      color: rgb(239 232 218 / 75%);
+    }
+
+    .log-agent p {
+      margin: 6px 0 0;
+      max-height: 6rem;
+      overflow: auto;
+      white-space: pre-wrap;
+      font-size: 0.84rem;
+      line-height: 1.45;
+      color: rgb(239 232 218 / 75%);
+    }
+
+    .log-panel__scroll {
+      min-height: 0;
+      flex: 1;
+      overflow: auto;
+      padding: 14px 16px;
+      scrollbar-width: thin;
+      scrollbar-color: rgb(239 232 218 / 30%) transparent;
+    }
+
+    .log-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 10px;
+    }
+
+    .log-entry {
+      --tone: rgb(239 232 218 / 35%);
+      position: relative;
+      border-left: 2px solid var(--tone);
+      background: rgb(239 232 218 / 4%);
+      padding: 8px 10px 9px 12px;
+      animation: logEnter 0.25s ease-out both;
+    }
+
+    .log-entry--info {
+      --tone: rgb(126 166 204 / 75%);
+    }
+
+    .log-entry--warn {
+      --tone: rgb(232 194 88 / 80%);
+    }
+
+    .log-entry--success {
+      --tone: rgb(143 191 127 / 80%);
+    }
+
+    .log-entry--error {
+      --tone: rgb(212 106 106 / 85%);
+      background: rgb(212 106 106 / 8%);
+    }
+
+    .log-entry__meta {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+      margin: 0;
+    }
+
+    .log-entry__type {
+      font-size: 0.64rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--tone);
+    }
+
+    .log-entry__time {
+      font-size: 0.66rem;
+      font-variant-numeric: tabular-nums;
+      color: rgb(239 232 218 / 40%);
       white-space: nowrap;
     }
 
-    .diagram-card h2,
-    .diagram-card h3 {
-      margin: 8px 0 0;
-      font-family: 'Russo One', sans-serif;
-      font-size: 1rem;
-      line-height: 1.3;
-    }
-
-    .diagram-card__subtitle,
-    .diagram-card__detail,
-    .diagram-card__meta {
-      margin: 8px 0 0;
+    .log-entry__message {
+      margin: 4px 0 0;
       font-size: 0.84rem;
-      line-height: 1.45;
-      color: rgb(17 19 18 / 72%);
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+      color: rgb(239 232 218 / 82%);
     }
 
-    .diagram-card__detail {
-      max-height: 6.6em;
-      overflow: auto;
-      color: rgb(17 19 18 / 82%);
-    }
-
-    .diagram-card__meta {
-      font-weight: 700;
-      color: rgb(17 19 18 / 55%);
-    }
-
-    .diagram-fanout {
-      margin-top: 34px;
-      border-top: 1px dotted rgb(239 232 218 / 35%);
-      padding-top: 18px;
-    }
-
-    .diagram-section-label {
-      color: rgb(239 232 218 / 58%);
-      margin-bottom: 14px;
-    }
-
-    .diagram-grid {
+    .log-empty {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-      gap: 16px;
-      align-items: stretch;
+      justify-items: center;
+      gap: 10px;
+      padding: 36px 0;
+      color: rgb(239 232 218 / 55%);
     }
 
-    .diagram-grid .diagram-card {
-      width: 100%;
-      min-height: 190px;
+    .log-empty p {
+      margin: 0;
+      font-size: 0.86rem;
+    }
+
+    .log-empty__dots {
+      display: inline-flex;
+      gap: 6px;
+    }
+
+    .log-empty__dots i {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: rgb(239 232 218 / 45%);
+      animation: statusPulse 1.2s ease-in-out infinite;
+    }
+
+    .log-empty__dots i:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+
+    .log-empty__dots i:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+
+    .log-stream-error {
+      margin: 12px 0 0;
+      border: 1px solid #a43f3f;
+      background: rgb(164 63 63 / 10%);
+      padding: 8px 12px;
+      font-size: 0.84rem;
+      color: #ffd1d1;
+    }
+
+    @keyframes statusPulse {
+      0%,
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+      50% {
+        opacity: 0.35;
+        transform: scale(0.75);
+      }
+    }
+
+    @keyframes logEnter {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
   `,
 })
@@ -373,14 +486,22 @@ export class PromptDiagramPageComponent {
     if (latestEvent.type === 'error') return 'Failed';
     return 'Running';
   });
+  readonly statusTone = computed<'waiting' | 'running' | 'done' | 'failed'>(() => {
+    const status = this.runStatus();
+    if (status === 'Completed') return 'done';
+    if (status === 'Failed' || status === 'Stream disconnected') return 'failed';
+    if (status === 'Running') return 'running';
+    return 'waiting';
+  });
   readonly logs = computed<RunLogEntry[]>(() =>
     [
       ...(this.promptText()
         ? [
             {
               id: 'loaded-prompt',
-              timestamp: '',
+              time: '',
               type: 'prompt',
+              tone: 'muted' as LogTone,
               message: `Loaded saved prompt: ${this.promptText()}`,
             },
           ]
@@ -422,6 +543,13 @@ export class PromptDiagramPageComponent {
   );
   readonly completedEvent = computed(() =>
     this.runEvents().find((event) => event.type === 'run_completed'),
+  );
+  readonly evaluation = computed(
+    () =>
+      this.runEvents().find((event) => event.type === 'scored')?.payload
+        .evaluation ??
+      this.completedEvent()?.payload.reasoningTrail?.evaluation ??
+      null,
   );
   readonly errorEvent = computed(() =>
     this.runEvents().find((event) => event.type === 'error'),
@@ -526,22 +654,143 @@ export class PromptDiagramPageComponent {
       };
     }
 
-    const completedEvent = this.completedEvent();
-    if (!completedEvent) return null;
+    const evaluation = this.evaluation();
+    if (!evaluation) return null;
 
-    const trail = completedEvent.payload.reasoningTrail;
+    const best = evaluation.candidateScores.find(
+      (score) => score.id === evaluation.bestCandidateId,
+    );
+
     return {
-      id: 'reasoning-trail',
-      stage: '08 reasoning trail',
-      title: 'Reasoning trail',
-      subtitle: `method: ${trail?.method ?? 'biomimicry'}`,
-      detail: `${trail?.selected_mechanisms.length ?? 0} mechanisms selected · ${
-        trail?.candidates.length ?? 0
-      } candidates generated`,
+      id: 'solution-score',
+      stage: '08 solution score',
+      title: `Solution score: ${evaluation.overallScore}/100`,
+      subtitle: evaluation.verdict,
+      detail: evaluation.candidateScores
+        .map((score) => `[${score.id}] ${score.tytul} — ${score.score}/100`)
+        .join('\n'),
+      meta: best ? `Best: ${best.tytul} (${best.score}/100)` : undefined,
+      badge: `${evaluation.overallScore}/100`,
     };
   });
 
+  readonly nodeTemplateMap = new NgDiagramNodeTemplateMap([
+    ['run-card', RunCardNodeComponent],
+  ]);
+
+  readonly model = initializeModel({ nodes: [], edges: [] });
+
+  private readonly graph = computed(() => {
+    const COLUMN_GAP = 400;
+    const ROW_GAP = 250;
+
+    const nodes: Node<RunCardNodeData>[] = [];
+    const edges: Edge[] = [];
+
+    const addEdge = (source: string, target: string) =>
+      edges.push({
+        id: `e-${source}-${target}`,
+        source,
+        sourcePort: 'port-bottom',
+        target,
+        targetPort: 'port-top',
+        routing: 'bezier',
+        data: {},
+      });
+
+    const spine = this.spineCards();
+    spine.forEach((card, index) => {
+      nodes.push(this.toNode(card, 'spine', 0, index * ROW_GAP));
+      if (index > 0) addEdge(spine[index - 1].id, card.id);
+    });
+
+    let y = spine.length * ROW_GAP + 40;
+    const lastSpineId = spine.at(-1)?.id ?? null;
+
+    const mechanisms = this.mechanismCards();
+    mechanisms.forEach((card, index) => {
+      const x = (index - (mechanisms.length - 1) / 2) * COLUMN_GAP;
+      nodes.push(this.toNode(card, 'mechanism', x, y));
+      if (lastSpineId) addEdge(lastSpineId, card.id);
+    });
+    if (mechanisms.length) y += ROW_GAP + 40;
+
+    const candidates = this.candidateCards();
+    candidates.forEach((card, index) => {
+      const x = (index - (candidates.length - 1) / 2) * COLUMN_GAP;
+      nodes.push(this.toNode(card, 'candidate', x, y));
+      const parent = mechanisms.length
+        ? mechanisms[index % mechanisms.length].id
+        : lastSpineId;
+      if (parent) addEdge(parent, card.id);
+    });
+    if (candidates.length) y += ROW_GAP + 40;
+
+    const finalCard = this.finalCard();
+    if (finalCard) {
+      nodes.push(this.toNode(finalCard, 'terminal', 0, y));
+      const parents = candidates.length
+        ? candidates
+        : mechanisms.length
+          ? mechanisms
+          : lastSpineId
+            ? [{ id: lastSpineId }]
+            : [];
+      parents.forEach((parent) => addEdge(parent.id, finalCard.id));
+    }
+
+    return { nodes, edges };
+  });
+
+  private toNode(
+    card: DiagramCard,
+    variant: RunCardVariant,
+    x: number,
+    y: number,
+  ): Node<RunCardNodeData> {
+    return {
+      id: card.id,
+      type: 'run-card',
+      position: { x, y },
+      draggable: true,
+      data: {
+        stage: card.stage,
+        title: card.title,
+        subtitle: card.subtitle,
+        detail: card.detail,
+        meta: card.meta,
+        badge: card.badge,
+        variant,
+      },
+    };
+  }
+
+  private readonly logScroll =
+    viewChild<ElementRef<HTMLElement>>('logScroll');
+  private stickToBottom = true;
+
+  onLogScroll(event: Event): void {
+    const el = event.target as HTMLElement;
+    this.stickToBottom =
+      el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+  }
+
   constructor() {
+    effect(() => {
+      const { nodes, edges } = this.graph();
+      this.model.updateNodes(nodes);
+      this.model.updateEdges(edges);
+    });
+
+    afterRenderEffect(() => {
+      this.logs();
+      this.streamError();
+      const el = this.logScroll()?.nativeElement;
+      if (el && this.stickToBottom) {
+        el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+      }
+    });
+
     effect(() => {
       const promptId = this.promptId();
       if (!promptId || promptId === this.activeRunId) return;
@@ -562,18 +811,23 @@ export class PromptDiagramPageComponent {
   }
 
   private eventLogEntries(event: PromptRunEvent): RunLogEntry[] {
+    const time = this.formatTime(event.timestamp);
+    const tone = this.eventTone(event.type);
+
     if (event.type === 'run_started') {
       return [
         {
           id: `${event.id}-problem`,
-          timestamp: event.timestamp,
+          time,
           type: event.type,
+          tone,
           message: `Problem received by ai-agent: ${event.payload.problem ?? ''}`,
         },
         {
           id: `${event.id}-query`,
-          timestamp: event.timestamp,
+          time,
           type: event.type,
+          tone,
           message: `Function query: ${event.payload.functionQuery ?? ''}`,
         },
       ];
@@ -583,8 +837,9 @@ export class PromptDiagramPageComponent {
       return [
         {
           id: event.id,
-          timestamp: event.timestamp,
+          time,
           type: event.type,
+          tone,
           message:
             'Top ranking: ' +
             (event.payload.ranking ?? [])
@@ -602,9 +857,27 @@ export class PromptDiagramPageComponent {
       return [
         {
           id: event.id,
-          timestamp: event.timestamp,
+          time,
           type: event.type,
+          tone,
           message: `[${event.payload.candidate?.id}] ${event.payload.candidate?.tytul} - ${event.payload.candidate?.opis}`,
+        },
+      ];
+    }
+
+    if (event.type === 'scored') {
+      const evaluation = event.payload.evaluation;
+      return [
+        {
+          id: event.id,
+          time,
+          type: event.type,
+          tone,
+          message:
+            `Solution score ${evaluation?.overallScore ?? 0}/100 — ${evaluation?.verdict ?? ''} ` +
+            (evaluation?.candidateScores ?? [])
+              .map((score) => `[${score.id}] ${score.score}/100`)
+              .join('; '),
         },
       ];
     }
@@ -612,10 +885,37 @@ export class PromptDiagramPageComponent {
     return [
       {
         id: event.id,
-        timestamp: event.timestamp,
+        time,
         type: event.type,
+        tone,
         message: event.message,
       },
     ];
+  }
+
+  private eventTone(type: string): LogTone {
+    switch (type) {
+      case 'error':
+        return 'error';
+      case 'run_completed':
+      case 'candidate':
+      case 'scored':
+        return 'success';
+      case 'mechanism_selected':
+      case 'ranking':
+        return 'warn';
+      case 'run_started':
+      case 'database_loaded':
+      case 'vectorized':
+        return 'info';
+      default:
+        return 'muted';
+    }
+  }
+
+  private formatTime(timestamp: string): string {
+    const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleTimeString([], { hour12: false });
   }
 }

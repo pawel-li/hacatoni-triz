@@ -15,10 +15,10 @@ import { PromptApiService } from '../prompts/data/prompt-api.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main
-      class="flex h-dvh flex-col overflow-hidden bg-[#0f1110] px-5 pb-6 pt-3 text-[#efe8da] sm:px-8 sm:pt-4 lg:grid lg:grid-cols-2 lg:items-center lg:px-12"
+      class="flex min-h-dvh flex-col bg-[#0f1110] px-4 pb-8 pt-4 text-[#efe8da] sm:px-8 lg:grid lg:h-dvh lg:grid-cols-2 lg:items-center lg:overflow-hidden lg:px-12 lg:pb-6"
       aria-label="Home"
     >
-      <section class="flex min-h-0 w-full flex-1 items-center justify-center" aria-label="Prompt form">
+      <section class="flex min-h-0 w-full flex-1 items-center justify-center py-2" aria-label="Prompt form">
         <nw-trizz-card>
           <!-- Prompt form -->
           <form
@@ -62,18 +62,18 @@ import { PromptApiService } from '../prompts/data/prompt-api.service';
       </section>
 
       <nav
-        class="mx-auto mt-4 flex w-full max-w-[300px] flex-col gap-3 lg:mt-0 lg:items-stretch"
+        class="mx-auto mt-6 flex w-full max-w-[420px] flex-col gap-3 sm:max-w-[640px] sm:flex-row lg:mt-0 lg:max-w-[300px] lg:flex-col lg:items-stretch"
         aria-label="Main menu"
       >
         <a
           routerLink="/prompts"
-          class="border border-dotted border-[#efe8da]/55 px-5 py-4 text-sm font-bold uppercase tracking-[0.08em] text-[#efe8da] transition hover:border-[#efe8da] hover:bg-[#efe8da]/10 focus:outline-none focus:ring-4 focus:ring-[#efe8da]/35"
+          class="border border-dotted border-[#efe8da]/55 px-5 py-4 text-center text-sm font-bold uppercase tracking-[0.08em] text-[#efe8da] transition hover:border-[#efe8da] hover:bg-[#efe8da]/10 focus:outline-none focus:ring-4 focus:ring-[#efe8da]/35 sm:flex-1 lg:text-left"
         >
           Prompts
         </a>
         <a
           routerLink="/about"
-          class="border border-dotted border-[#efe8da]/55 px-5 py-4 text-sm font-bold uppercase tracking-[0.08em] text-[#efe8da] transition hover:border-[#efe8da] hover:bg-[#efe8da]/10 focus:outline-none focus:ring-4 focus:ring-[#efe8da]/35"
+          class="border border-dotted border-[#efe8da]/55 px-5 py-4 text-center text-sm font-bold uppercase tracking-[0.08em] text-[#efe8da] transition hover:border-[#efe8da] hover:bg-[#efe8da]/10 focus:outline-none focus:ring-4 focus:ring-[#efe8da]/35 sm:flex-1 lg:text-left"
         >
           O nas
         </a>
@@ -81,7 +81,7 @@ import { PromptApiService } from '../prompts/data/prompt-api.service';
           href="https://github.com/pawel-li/hacatoni-triz"
           target="_blank"
           rel="noreferrer"
-          class="border border-dotted border-[#efe8da]/55 px-5 py-4 text-sm font-bold uppercase tracking-[0.08em] text-[#efe8da] transition hover:border-[#efe8da] hover:bg-[#efe8da]/10 focus:outline-none focus:ring-4 focus:ring-[#efe8da]/35"
+          class="border border-dotted border-[#efe8da]/55 px-5 py-4 text-center text-sm font-bold uppercase tracking-[0.08em] text-[#efe8da] transition hover:border-[#efe8da] hover:bg-[#efe8da]/10 focus:outline-none focus:ring-4 focus:ring-[#efe8da]/35 sm:flex-1 lg:text-left"
           aria-label="Open BioTRIZZER GitHub repository in a new tab"
         >
           GitHub
