@@ -10,7 +10,29 @@ datasource db {
 model Prompt {
   id        String   @id @default(cuid())
   text      String
+  method    String   @default("biomimicry")
   createdAt DateTime @default(now())
+  runs      PromptRun[]
 
   @@map("prompts")
+}
+
+model PromptRun {
+  id               String    @id @default(cuid())
+  promptId         String
+  method           String
+  provider         String?
+  model            String?
+  promptTokens     Int       @default(0)
+  completionTokens Int       @default(0)
+  totalTokens      Int       @default(0)
+  costUsd          Float     @default(0)
+  currency         String    @default("USD")
+  status           String    @default("running")
+  startedAt        DateTime  @default(now())
+  completedAt      DateTime?
+  prompt           Prompt    @relation(fields: [promptId], references: [id], onDelete: Cascade)
+
+  @@index([promptId, startedAt])
+  @@map("prompt_runs")
 }

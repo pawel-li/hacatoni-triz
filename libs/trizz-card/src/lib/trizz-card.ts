@@ -25,6 +25,6 @@ import { CardComponent, TriangleCanvasComponent } from '@nw/ui';
 })
 export class TrizzCardComponent {
   readonly title = input('BioTRIZZER');
-  readonly subtitle = input('wklej problem i odkrywaj wiedze systemami trizz & biomimicra');
+  readonly subtitle = input<string | undefined>();
   readonly contentOnly = input(false);
 }

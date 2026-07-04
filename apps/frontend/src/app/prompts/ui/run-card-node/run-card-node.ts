@@ -2,7 +2,12 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { NgDiagramPortComponent } from 'ng-diagram';
 import type { Node } from 'ng-diagram';
 
-export type RunCardVariant = 'spine' | 'mechanism' | 'candidate' | 'terminal';
+export type RunCardVariant =
+  | 'spine'
+  | 'mechanism'
+  | 'candidate'
+  | 'best'
+  | 'terminal';
 
 export type RunCardNodeData = {
   stage: string;
@@ -21,6 +26,9 @@ export type RunCardNodeData = {
   template: `
     <article class="run-card" [class]="'run-card--' + node().data.variant" role="article">
       <ng-diagram-port id="port-top" side="top" type="target" />
+      @if (node().data.variant === 'best') {
+        <span class="run-card__star" aria-hidden="true">★</span>
+      }
       <div class="run-card__header-row">
         <p class="run-card__stage">{{ node().data.stage }}</p>
         @if (node().data.badge) {
@@ -60,6 +68,31 @@ export type RunCardNodeData = {
 
     .run-card--candidate {
       background: #e7f0e2;
+    }
+
+    .run-card--best {
+      background: linear-gradient(140deg, #f9edbc, #edc95f);
+      border: 1px solid rgb(146 108 22 / 85%);
+      box-shadow:
+        0 0 0 3px rgb(232 194 88 / 25%),
+        0 18px 40px rgb(232 194 88 / 30%);
+    }
+
+    .run-card--best .run-card__badge {
+      border-color: rgb(146 108 22 / 70%);
+      color: rgb(87 62 8 / 90%);
+      font-weight: 800;
+    }
+
+    .run-card__star {
+      position: absolute;
+      top: -18px;
+      right: -14px;
+      font-size: 2rem;
+      line-height: 1;
+      color: #d4a017;
+      text-shadow: 0 2px 6px rgb(0 0 0 / 35%);
+      animation: starPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
     }
 
     .run-card--terminal {
@@ -125,6 +158,17 @@ export type RunCardNodeData = {
       to {
         opacity: 1;
         transform: translateY(0) scale(1);
+      }
+    }
+
+    @keyframes starPop {
+      from {
+        opacity: 0;
+        transform: scale(0.3) rotate(-30deg);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1) rotate(0deg);
       }
     }
   `,

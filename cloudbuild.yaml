@@ -1,5 +1,7 @@
 substitutions:
   _REGION: europe-west1
+  _PROJECT: hackaton-501316
+  _VERTEX_LOCATION: global
   _REPO: europe-west1-docker.pkg.dev/hackaton-501316/apps
 
 steps:
@@ -48,7 +50,7 @@ steps:
       - --region=${_REGION}
       - --allow-unauthenticated
       - --port=8080
-      - --set-secrets=GOOGLE_API_KEY=GOOGLE_API_KEY:latest
+      - --set-env-vars=GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=${_PROJECT},GOOGLE_CLOUD_LOCATION=${_VERTEX_LOCATION},GEMINI_MODEL=gemini-2.5-flash-lite
 
   # Deploy API
   - id: deploy-api

@@ -9,6 +9,7 @@ from collections.abc import Iterator
 from typing import Any
 from uuid import uuid4
 
+from ai_agent.gemini import GeminiCostMeter, build_genai_client, generate_json, use_vertexai
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -97,16 +98,26 @@ BIOMIMICRY_DB = [
 
 
 def stream_biomimicry_run(
-    problem: str, function_query: str | None = None, top_n: int = 3
+    problem: str,
+    function_query: str | None = None,
+    top_n: int = 3,
+    meter: GeminiCostMeter | None = None,
+    emit_cost: bool = True,
 ) -> Iterator[dict[str, Any]]:
     """Yield JSON-serializable events for a biomimicry prompt run."""
     normalized_problem = problem.strip()
     normalized_query = (function_query or DEFAULT_FUNCTION_QUERY).strip()
+    cost_meter = meter or GeminiCostMeter()
 
     yield _event(
         "run_started",
         "Biomimicry run started.",
-        {"problem": normalized_problem, "functionQuery": normalized_query},
+        {
+            "problem": normalized_problem,
+            "functionQuery": normalized_query,
+            "model": cost_meter.model,
+            "provider": cost_meter.provider,
+        },
     )
     yield _event(
         "database_loaded",
@@ -143,7 +154,7 @@ def stream_biomimicry_run(
             {"mechanism": _public_entry(entry)},
         )
         yield _event("log", f"Generating concept for {entry['id']}.")
-        candidate = _generate_concept_from_mechanism(normalized_problem, entry)
+        candidate = _generate_concept_from_mechanism(normalized_problem, entry, cost_meter)
         candidates.append(candidate)
         yield _event(
             "candidate",
@@ -157,6 +168,13 @@ def stream_biomimicry_run(
         f"Best solution scored {evaluation['overallScore']}/100.",
         {"evaluation": evaluation},
     )
+    cost = cost_meter.summary()
+    if emit_cost:
+        yield _event(
+            "run_cost",
+            f"Estimated Gemini cost: ${cost['totalCostUsd']:.6f}.",
+            {"cost": cost},
+        )
 
     reasoning_trail = {
         "method": "biomimicry",
@@ -170,7 +188,7 @@ def stream_biomimicry_run(
     yield _event(
         "run_completed",
         "Biomimicry run completed.",
-        {"reasoningTrail": reasoning_trail},
+        {"reasoningTrail": reasoning_trail, "cost": cost},
     )
 
 
@@ -239,7 +257,7 @@ def _evaluate_candidates(
 
 def _score_rationale(score: int, candidate: dict[str, str]) -> str:
     if candidate.get("fallback"):
-        return "Wygenerowano lokalny fallback (brak GEMINI_API_KEY) - obniza wykonalnosc."
+        return "Wygenerowano lokalny fallback (brak konfiguracji Gemini) - obniza wykonalnosc."
     if score >= 75:
         return "Silne dopasowanie mechanizmu i konkretny, wdrozalny opis rozwiazania."
     if score >= 55:
@@ -275,16 +293,21 @@ def _rank_mechanisms(function_query: str) -> tuple[list[dict[str, Any]], int, in
 
 
 def _generate_concept_from_mechanism(
-    problem: str, entry: dict[str, str]
+    problem: str, entry: dict[str, str], meter: GeminiCostMeter
 ) -> dict[str, str]:
-    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    client = _build_genai_client()
 
-    if api_key:
-        parsed = _generate_with_gemini(api_key, problem, entry)
-    else:
+    parsed = None
+    if client is not None:
+        try:
+            parsed = _generate_with_gemini(client, problem, entry, meter)
+        except Exception:  # noqa: BLE001
+            parsed = None
+
+    if not parsed or "tytul" not in parsed or "opis" not in parsed:
         parsed = {
             "tytul": "Koncept inspirowany: " + entry["organism"],
-            "opis": "[PLACEHOLDER - brak GEMINI_API_KEY] Rozwiniecie mechanizmu "
+            "opis": "[PLACEHOLDER - brak konfiguracji Gemini] Rozwiniecie mechanizmu "
             + entry["mechanism"]
             + " ("
             + entry["principle"]
@@ -301,12 +324,24 @@ def _generate_concept_from_mechanism(
     }
 
 
-def _generate_with_gemini(
-    api_key: str, problem: str, entry: dict[str, str]
-) -> dict[str, str]:
-    from google import genai
-    from google.genai import types
+def _use_vertexai() -> bool:
+    return use_vertexai()
 
+
+def _build_genai_client():
+    """Create a google-genai client.
+
+    Prefers Vertex AI (authenticated via Application Default Credentials and
+    billed against the GCP project's quota) when GOOGLE_GENAI_USE_VERTEXAI is
+    set; otherwise falls back to a Gemini Developer API key. Returns None when
+    neither is configured so the caller can use the local placeholder.
+    """
+    return build_genai_client()
+
+
+def _generate_with_gemini(
+    client, problem: str, entry: dict[str, str], meter: GeminiCostMeter
+) -> dict[str, str]:
     prompt = f"""Jestes inzynierem projektujacym ekologiczne opakowania.
 
 Problem: {problem}
@@ -321,13 +356,7 @@ Zaproponuj JEDEN konkretny, wdrozalny koncept opakowania inspirowany tym mechani
 Odpowiedz WYLACZNIE czystym JSON (bez markdown, bez ```), z polami:
 tytul (krotki, 3-6 slow) i opis (2-3 zdania, konkretnie jak dziala i z jakiego materialu)."""
 
-    client = genai.Client(api_key=api_key)
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt,
-        config=types.GenerateContentConfig(response_mime_type="application/json"),
-    )
-    return json.loads(response.text or "{}")
+    return json.loads(generate_json(prompt, meter=meter, client=client))
 
 
 def _public_entry(entry: dict[str, str]) -> dict[str, str]:

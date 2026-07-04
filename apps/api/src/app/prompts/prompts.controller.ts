@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Post, Query, Res } from '@nestjs/common';
+import { PromptRunCostSummary } from '@nw/shared-types';
 import { Response } from 'express';
 import { AgentRunService } from './agent-run.service';
 import { PromptsService } from './prompts.service';
@@ -26,13 +27,17 @@ export class PromptsController {
 
   @Post()
   async create(@Body() dto: CreatePromptDto) {
-    const prompt = await this.promptsService.create(dto.text);
-    return { id: prompt.id, text: prompt.text, createdAt: prompt.createdAt };
+    const method = dto.method ?? 'biomimicry';
+    const prompt = await this.promptsService.create(dto.text, method);
+    return { id: prompt.id, text: prompt.text, method: prompt.method, createdAt: prompt.createdAt };
   }
 
   @Get(':id/run/stream')
   async streamRun(@Param('id') id: string, @Res() response: Response) {
     const prompt = await this.promptsService.findOne(id);
+    const run = await this.promptsService.createRun(prompt.id, prompt.method);
+    let cost: PromptRunCostSummary | null = null;
+    let failed = false;
 
     response.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     response.setHeader('Cache-Control', 'no-cache, no-transform');
@@ -40,10 +45,17 @@ export class PromptsController {
     response.flushHeaders?.();
 
     try {
-      for await (const event of this.agentRunService.streamPromptRun(prompt.text)) {
+      for await (const event of this.agentRunService.streamPromptRun(prompt.text, prompt.method)) {
+        if (event.type === 'run_cost' && event.payload.cost) {
+          cost = event.payload.cost;
+        }
+        if (event.type === 'error') {
+          failed = true;
+        }
         response.write(`data: ${JSON.stringify(event)}\n\n`);
       }
     } finally {
+      await this.promptsService.completeRun(run.id, cost, failed ? 'failed' : 'completed');
       response.end();
     }
   }
@@ -51,6 +63,6 @@ export class PromptsController {
   @Get(':id')
   async findOne(@Param('id') id: string) {
     const prompt = await this.promptsService.findOne(id);
-    return { id: prompt.id, text: prompt.text, createdAt: prompt.createdAt };
+    return { id: prompt.id, text: prompt.text, method: prompt.method, createdAt: prompt.createdAt };
   }
 }

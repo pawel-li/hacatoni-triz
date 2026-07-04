@@ -91,6 +91,9 @@ const PAGE_SIZE = 12;
                   [routerLink]="['/prompts', prompt.id]"
                   class="block space-y-2 whitespace-pre-wrap text-[0.95rem] leading-7 text-[#111312] outline-none [overflow-wrap:anywhere] focus-visible:ring-4 focus-visible:ring-[#0b5f86]/30"
                 >
+                  <span class="inline-block border border-dotted border-[#111312]/45 px-2 py-0.5 text-[0.62rem] font-bold uppercase tracking-[0.08em] text-[#2e332f]">
+                    {{ formatMethod(prompt.method) }}
+                  </span>
                   <time class="block text-xs font-semibold uppercase tracking-[0.06em] text-[#3e4440]" [attr.datetime]="prompt.createdAt">
                     {{ prompt.createdAt | date: 'medium' }}
                   </time>
@@ -191,6 +194,12 @@ export class PromptListPageComponent implements AfterViewInit, OnDestroy {
 
   loadMore(): void {
     this.loadNextPage();
+  }
+
+  formatMethod(method?: string): string {
+    if (method === 'both') return 'Biomimicry + TRIZ';
+    if (method === 'triz') return 'TRIZ';
+    return 'Biomimicry';
   }
 
   private loadFirstPage(search: string): void {

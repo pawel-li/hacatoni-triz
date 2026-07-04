@@ -21,9 +21,26 @@ import { RouterModule } from '@angular/router';
             O nas
           </h1>
           <p class="mt-5 text-base leading-7">
-            BioTRIZZER pomaga zamienic problem w prompt, ktory mozna analizowac przez TRIZ i biomimikre.
-            Projekt laczy prosta karte wejscia, historie promptow i dalsza prace nad diagramami rozwiazan.
+            BioTRIZZER pomaga zamienic surowy problem w prompt, a potem przeprowadza go przez dwa
+            uzupelniajace sie sposoby analizy: inzynierski TRIZ oraz inspiracje z biomimikry.
           </p>
+          <div class="mt-6 grid gap-4 sm:grid-cols-2">
+            <article class="border-2 border-[#111312] bg-[#efe8da] p-4">
+              <h2 class="m-0 text-lg font-extrabold uppercase tracking-wide">TRIZ</h2>
+              <p class="mt-3 text-sm leading-6">
+                Agent rozbija problem na sprzecznosci, ograniczenia i cel zmiany. Szuka zasad
+                wynalazczych, ktore pomagaja przeformulowac konflikt w konkretne kierunki rozwiazania.
+              </p>
+            </article>
+            <article class="border-2 border-[#111312] bg-[#efe8da] p-4">
+              <h2 class="m-0 text-lg font-extrabold uppercase tracking-wide">Biomimikra</h2>
+              <p class="mt-3 text-sm leading-6">
+                Agent patrzy na ten sam problem jak na wyzwanie znane z natury: adaptacje, przeplywy,
+                ochrone, wspolprace albo regeneracje. Z takich analogii wybiera tropy do dalszego
+                rozwijania w diagramie.
+              </p>
+            </article>
+          </div>
         </section>
       </div>
     </main>

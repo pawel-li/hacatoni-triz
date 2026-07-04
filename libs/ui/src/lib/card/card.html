@@ -3,7 +3,7 @@
   [class]="
     contentOnly()
       ? 'w-[min(92vw,430px)] grid-rows-1'
-      : 'w-full max-w-[min(94vw,860px)] grid-rows-[170px_auto] sm:min-h-[700px] sm:grid-rows-[32%_68%]'
+      : 'w-full max-w-[min(92vw,740px)] grid-rows-[148px_auto]'
   "
   [attr.aria-labelledby]="contentOnly() ? null : headingId()"
 >
@@ -22,7 +22,7 @@
 
   <!-- ── Body slot ───────────────────────────────────────────────── -->
   <section
-    class="flex h-full min-h-0 flex-col"
+    class="flex min-h-0 flex-col"
     [class.overflow-y-auto]="contentOnly()"
     [class.overflow-visible]="!contentOnly()"
     [class.px-[30px]]="!contentOnly()"

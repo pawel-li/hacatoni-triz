@@ -5,6 +5,7 @@ COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
 ENV NX_DAEMON=false
+RUN npx prisma generate
 RUN npx nx build api
 
 FROM node:24-alpine

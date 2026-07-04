@@ -22,7 +22,7 @@ import {
 import type { Edge, Node } from 'ng-diagram';
 import { catchError, map, of, startWith, switchMap } from 'rxjs';
 import { PromptApiService } from '../../data/prompt-api.service';
-import { Prompt, PromptRunEvent } from '../../data/types';
+import { Prompt, PromptRunCostSummary, PromptRunEvent } from '../../data/types';
 import {
   RunCardNodeComponent,
   RunCardNodeData,
@@ -43,6 +43,8 @@ type DiagramCard = {
   detail?: string;
   meta?: string;
   badge?: string;
+  sourceId?: string;
+  best?: boolean;
 };
 
 type LogTone = 'muted' | 'info' | 'warn' | 'success' | 'error';
@@ -125,6 +127,22 @@ type RunLogEntry = {
               <span class="log-status__dot" aria-hidden="true"></span>
               {{ runStatus() }}
             </p>
+            @if (displayedCost(); as cost) {
+              <dl class="log-cost" aria-label="Run cost">
+                <div>
+                  <dt>Cost</dt>
+                  <dd>{{ formatCost(cost.totalCostUsd) }}</dd>
+                </div>
+                <div>
+                  <dt>Model</dt>
+                  <dd>{{ cost.model }}</dd>
+                </div>
+                <div>
+                  <dt>Tokens</dt>
+                  <dd>{{ cost.totalTokens }}</dd>
+                </div>
+              </dl>
+            }
             @if (agentProblem(); as problem) {
               <details class="log-agent">
                 <summary>Agent input</summary>
@@ -270,6 +288,37 @@ type RunLogEntry = {
 
     .log-status--failed .log-status__dot {
       background: #d46a6a;
+    }
+
+    .log-cost {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin: 10px 0 0;
+    }
+
+    .log-cost div {
+      min-width: 0;
+      border: 1px dotted rgb(239 232 218 / 30%);
+      padding: 7px 8px;
+      background: rgb(143 191 127 / 7%);
+    }
+
+    .log-cost dt {
+      margin: 0 0 3px;
+      font-size: 0.58rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgb(239 232 218 / 45%);
+    }
+
+    .log-cost dd {
+      margin: 0;
+      overflow-wrap: anywhere;
+      font-size: 0.76rem;
+      font-weight: 800;
+      color: #efe8da;
     }
 
     .log-agent {
@@ -487,6 +536,7 @@ export class PromptDiagramPageComponent {
 
   readonly loading = computed(() => this.state().loading);
   readonly error = computed(() => this.state().error);
+  readonly prompt = computed(() => this.state().prompt);
   readonly promptText = computed(() => this.state().prompt?.text ?? null);
   readonly promptId = computed(() => this.state().prompt?.id ?? null);
   readonly runStatus = computed(() => {
@@ -552,6 +602,11 @@ export class PromptDiagramPageComponent {
       (event) => event.type === 'candidate' && event.payload.candidate,
     ),
   );
+  readonly contradictionEvent = computed(() =>
+    this.runEvents().find(
+      (event) => event.type === 'contradiction_found' && event.payload.contradiction,
+    ),
+  );
   readonly completedEvent = computed(() =>
     this.runEvents().find((event) => event.type === 'run_completed'),
   );
@@ -565,6 +620,30 @@ export class PromptDiagramPageComponent {
   readonly errorEvent = computed(() =>
     this.runEvents().find((event) => event.type === 'error'),
   );
+  readonly displayedCost = computed<PromptRunCostSummary | null>(() => {
+    const streamedCost =
+      [...this.runEvents()]
+        .reverse()
+        .find((event: PromptRunEvent) => event.payload.cost)?.payload.cost ?? null;
+    if (streamedCost) return streamedCost;
+
+    const savedRun = this.prompt()?.runs?.[0];
+    if (!savedRun) return null;
+
+    return {
+      provider: savedRun.provider ?? 'unknown',
+      model: savedRun.model ?? 'unknown',
+      promptTokens: savedRun.promptTokens,
+      completionTokens: savedRun.completionTokens,
+      totalTokens: savedRun.totalTokens,
+      inputCostUsd: 0,
+      outputCostUsd: 0,
+      totalCostUsd: savedRun.costUsd,
+      currency: savedRun.currency,
+      calls: 0,
+      pricing: 'saved run total',
+    };
+  });
 
   readonly spineCards = computed<DiagramCard[]>(() => {
     const cards: DiagramCard[] = [
@@ -642,16 +721,48 @@ export class PromptDiagramPageComponent {
     })),
   );
 
-  readonly candidateCards = computed<DiagramCard[]>(() =>
-    this.candidateEvents().map((event, index) => ({
-      id: `candidate-${event.payload.candidate?.id ?? index}`,
-      stage: `07 candidate ${index + 1}`,
-      title: event.payload.candidate?.tytul ?? 'Generated candidate',
-      subtitle: event.payload.candidate?.zrodlo_mechanizmu ?? event.message,
-      detail: event.payload.candidate?.opis ?? '',
-      badge: event.payload.candidate?.fallback ? 'local fallback' : undefined,
-    })),
-  );
+  readonly contradictionCard = computed<DiagramCard | null>(() => {
+    const event = this.contradictionEvent();
+    if (!event) return null;
+    const contradiction = event.payload.contradiction;
+    return {
+      id: 'triz-contradiction',
+      stage: '06 triz contradiction',
+      title: 'Technical contradiction',
+      subtitle: contradiction?.triz_contradiction_statement ?? event.message,
+      detail: (contradiction?.triz_inventive_principles ?? []).join('\n'),
+      meta: `${contradiction?.feature_to_improve ?? ''} vs ${contradiction?.feature_that_worsens ?? ''}`,
+    };
+  });
+
+  readonly candidateCards = computed<DiagramCard[]>(() => {
+    const evaluation = this.evaluation();
+    return this.candidateEvents().map((event, index) => {
+      const candidate = event.payload.candidate;
+      const sourceId = candidate?.id ?? `${index}`;
+      const score =
+        evaluation?.candidateScores.find((item) => item.id === sourceId) ?? null;
+      const best = !!score && evaluation?.bestCandidateId === sourceId;
+      return {
+        id: `candidate-${sourceId}`,
+        sourceId,
+        stage:
+          candidate?.method === 'triz'
+            ? `07 triz candidate`
+            : `07 candidate ${index + 1}`,
+        title: candidate?.tytul ?? 'Generated candidate',
+        subtitle: candidate?.zrodlo_mechanizmu ?? event.message,
+        detail: candidate?.opis ?? '',
+        meta: score?.rationale || undefined,
+        badge: score
+          ? `${best ? '★ ' : ''}${score.score}/100`
+          : candidate?.fallback
+            ? 'local fallback'
+            : undefined,
+        best,
+      };
+    });
+  });
 
   readonly finalCard = computed<DiagramCard | null>(() => {
     const errorEvent = this.errorEvent();
@@ -666,6 +777,7 @@ export class PromptDiagramPageComponent {
     }
 
     const evaluation = this.evaluation();
+    const cost = this.displayedCost();
     if (!evaluation) return null;
 
     const best = evaluation.candidateScores.find(
@@ -680,8 +792,13 @@ export class PromptDiagramPageComponent {
       detail: evaluation.candidateScores
         .map((score) => `[${score.id}] ${score.tytul} — ${score.score}/100`)
         .join('\n'),
-      meta: best ? `Best: ${best.tytul} (${best.score}/100)` : undefined,
-      badge: `${evaluation.overallScore}/100`,
+      meta: [
+        best ? `Best: ${best.tytul} (${best.score}/100)` : null,
+        cost ? `Cost: ${this.formatCost(cost.totalCostUsd)} · ${cost.model}` : null,
+      ]
+        .filter(Boolean)
+        .join('\n') || undefined,
+      badge: cost ? this.formatCost(cost.totalCostUsd) : `${evaluation.overallScore}/100`,
     };
   });
 
@@ -718,21 +835,28 @@ export class PromptDiagramPageComponent {
     let y = spine.length * ROW_GAP + 40;
     const lastSpineId = spine.at(-1)?.id ?? null;
 
-    const mechanisms = this.mechanismCards();
-    mechanisms.forEach((card, index) => {
-      const x = (index - (mechanisms.length - 1) / 2) * COLUMN_GAP;
+    const contradiction = this.contradictionCard();
+    const branches = [
+      ...this.mechanismCards(),
+      ...(contradiction ? [contradiction] : []),
+    ];
+    branches.forEach((card, index) => {
+      const x = (index - (branches.length - 1) / 2) * COLUMN_GAP;
       nodes.push(this.toNode(card, 'mechanism', x, y));
       if (lastSpineId) addEdge(lastSpineId, card.id);
     });
-    if (mechanisms.length) y += ROW_GAP + 40;
+    if (branches.length) y += ROW_GAP + 40;
 
     const candidates = this.candidateCards();
     candidates.forEach((card, index) => {
       const x = (index - (candidates.length - 1) / 2) * COLUMN_GAP;
-      nodes.push(this.toNode(card, 'candidate', x, y));
-      const parent = mechanisms.length
-        ? mechanisms[index % mechanisms.length].id
-        : lastSpineId;
+      nodes.push(this.toNode(card, card.best ? 'best' : 'candidate', x, y));
+      const parent =
+        branches.find((branch) => branch.id === `mechanism-${card.sourceId}`)
+          ?.id ??
+        (card.sourceId?.startsWith('T') && contradiction
+          ? contradiction.id
+          : lastSpineId);
       if (parent) addEdge(parent, card.id);
     });
     if (candidates.length) y += ROW_GAP + 40;
@@ -742,8 +866,8 @@ export class PromptDiagramPageComponent {
       nodes.push(this.toNode(finalCard, 'terminal', 0, y));
       const parents = candidates.length
         ? candidates
-        : mechanisms.length
-          ? mechanisms
+        : branches.length
+          ? branches
           : lastSpineId
             ? [{ id: lastSpineId }]
             : [];
@@ -946,6 +1070,21 @@ export class PromptDiagramPageComponent {
       ];
     }
 
+    if (event.type === 'run_cost') {
+      const cost = event.payload.cost;
+      return [
+        {
+          id: event.id,
+          time,
+          type: event.type,
+          tone,
+          message: cost
+            ? `Estimated cost ${this.formatCost(cost.totalCostUsd)} for ${cost.totalTokens} tokens on ${cost.model}.`
+            : event.message,
+        },
+      ];
+    }
+
     return [
       {
         id: event.id,
@@ -964,9 +1103,11 @@ export class PromptDiagramPageComponent {
       case 'run_completed':
       case 'candidate':
       case 'scored':
+      case 'run_cost':
         return 'success';
       case 'mechanism_selected':
       case 'ranking':
+      case 'contradiction_found':
         return 'warn';
       case 'run_started':
       case 'database_loaded':
@@ -981,5 +1122,9 @@ export class PromptDiagramPageComponent {
     const date = new Date(timestamp);
     if (Number.isNaN(date.getTime())) return '';
     return date.toLocaleTimeString([], { hour12: false });
+  }
+
+  protected formatCost(cost: number): string {
+    return `$${cost.toFixed(cost >= 0.01 ? 4 : 6)}`;
   }
 }

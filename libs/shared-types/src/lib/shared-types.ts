@@ -1,3 +1,5 @@
+export type AnalysisMethod = 'triz' | 'biomimicry' | 'both';
+
 export interface ApiResponse {
   message: string;
 }
@@ -23,6 +25,14 @@ export interface PromptRunCandidate {
   tytul: string;
   opis: string;
   fallback?: boolean;
+  method?: 'biomimicry' | 'triz';
+}
+
+export interface PromptRunContradiction {
+  feature_to_improve: string;
+  feature_that_worsens: string;
+  triz_contradiction_statement: string;
+  triz_inventive_principles: string[];
 }
 
 export interface PromptRunScoreCriterion {
@@ -46,8 +56,39 @@ export interface PromptRunEvaluation {
   candidateScores: PromptRunCandidateScore[];
 }
 
+export interface PromptRunCostSummary {
+  provider: string;
+  model: string;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  cachedTokens?: number;
+  inputCostUsd: number;
+  outputCostUsd: number;
+  totalCostUsd: number;
+  currency: string;
+  calls: number;
+  pricing: string;
+}
+
+export interface PromptRunRecord {
+  id: string;
+  promptId: string;
+  method: AnalysisMethod;
+  provider: string | null;
+  model: string | null;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  costUsd: number;
+  currency: string;
+  status: string;
+  startedAt: string;
+  completedAt: string | null;
+}
+
 export interface PromptRunReasoningTrail {
-  method: 'biomimicry';
+  method: AnalysisMethod;
   problem: string;
   function_query: string;
   similarity_ranking: PromptRunRankingRow[];
@@ -65,8 +106,13 @@ export type PromptRunEventType =
   | 'mechanism_selected'
   | 'candidate'
   | 'scored'
+  | 'run_cost'
   | 'run_completed'
-  | 'error';
+  | 'error'
+  | 'contradiction_found'
+  | 'triz_candidate'
+  | 'triz_evaluated'
+  | 'triz_selected';
 
 export interface PromptRunEventPayload {
   problem?: string;
@@ -77,9 +123,13 @@ export interface PromptRunEventPayload {
   ranking?: PromptRunRankingRow[];
   mechanism?: PromptRunMechanism;
   candidate?: PromptRunCandidate;
+  contradiction?: PromptRunContradiction;
   evaluation?: PromptRunEvaluation;
   reasoningTrail?: PromptRunReasoningTrail;
+  cost?: PromptRunCostSummary;
   detail?: string;
+  model?: string;
+  provider?: string;
 }
 
 export interface PromptRunEvent {

@@ -6,12 +6,12 @@ export class AgentRunService {
   private readonly agentUrl =
     process.env.AI_AGENT_URL?.replace(/\/$/, '') ?? 'http://localhost:8080';
 
-  async *streamPromptRun(prompt: string): AsyncGenerator<PromptRunEvent> {
+  async *streamPromptRun(prompt: string, method: string = 'biomimicry'): AsyncGenerator<PromptRunEvent> {
     try {
       const response = await fetch(`${this.agentUrl}/run/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({ prompt, method }),
       });
 
       if (!response.ok) {

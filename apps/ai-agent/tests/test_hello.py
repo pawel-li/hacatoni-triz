@@ -13,6 +13,7 @@ def test_stream_biomimicry_run_yields_ordered_fallback_events(monkeypatch):
     """Test biomimicry run events without external model credentials."""
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_GENAI_USE_VERTEXAI", raising=False)
 
     events = list(stream_biomimicry_run("Protect apples in transport."))
     event_types = [event["type"] for event in events]
