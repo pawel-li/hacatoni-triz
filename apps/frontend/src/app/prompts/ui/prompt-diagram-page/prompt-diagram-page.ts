@@ -3,6 +3,7 @@ import {
   Component,
   DestroyRef,
   ElementRef,
+  Injector,
   afterRenderEffect,
   computed,
   effect,
@@ -45,6 +46,7 @@ type DiagramCard = {
   badge?: string;
   sourceId?: string;
   best?: boolean;
+  method?: 'triz' | 'biomimicry';
 };
 
 type LogTone = 'muted' | 'info' | 'warn' | 'success' | 'error';
@@ -111,7 +113,7 @@ type RunLogEntry = {
           aria-label="Live prompt diagram"
         >
           <ng-diagram
-            [model]="model"
+            [model]="model()"
             [nodeTemplateMap]="nodeTemplateMap"
             (diagramInit)="onDiagramInit()"
           />
@@ -718,6 +720,7 @@ export class PromptDiagramPageComponent {
       title: `[${event.payload.mechanism?.id}] ${event.payload.mechanism?.organism}`,
       subtitle: event.payload.mechanism?.mechanism ?? event.message,
       detail: event.payload.mechanism?.principle ?? '',
+      method: 'biomimicry' as const,
     })),
   );
 
@@ -732,6 +735,7 @@ export class PromptDiagramPageComponent {
       subtitle: contradiction?.triz_contradiction_statement ?? event.message,
       detail: (contradiction?.triz_inventive_principles ?? []).join('\n'),
       meta: `${contradiction?.feature_to_improve ?? ''} vs ${contradiction?.feature_that_worsens ?? ''}`,
+      method: 'triz',
     };
   });
 
@@ -743,11 +747,14 @@ export class PromptDiagramPageComponent {
       const score =
         evaluation?.candidateScores.find((item) => item.id === sourceId) ?? null;
       const best = !!score && evaluation?.bestCandidateId === sourceId;
+      const method =
+        candidate?.method ?? (sourceId.startsWith('T') ? 'triz' : 'biomimicry');
       return {
         id: `candidate-${sourceId}`,
         sourceId,
+        method,
         stage:
-          candidate?.method === 'triz'
+          method === 'triz'
             ? `07 triz candidate`
             : `07 candidate ${index + 1}`,
         title: candidate?.tytul ?? 'Generated candidate',
@@ -802,11 +809,15 @@ export class PromptDiagramPageComponent {
     };
   });
 
+  private readonly injector = inject(Injector);
+
   readonly nodeTemplateMap = new NgDiagramNodeTemplateMap([
     ['run-card', RunCardNodeComponent],
   ]);
 
-  readonly model = initializeModel({ nodes: [], edges: [] });
+  readonly model = computed(() =>
+    initializeModel(this.graph(), this.injector),
+  );
 
   private readonly graph = computed(() => {
     const COLUMN_GAP = 400;
@@ -896,6 +907,7 @@ export class PromptDiagramPageComponent {
         meta: card.meta,
         badge: card.badge,
         variant,
+        method: card.method,
       },
     };
   }
@@ -964,9 +976,7 @@ export class PromptDiagramPageComponent {
 
   constructor() {
     effect(() => {
-      const { nodes, edges } = this.graph();
-      this.model.updateNodes(nodes);
-      this.model.updateEdges(edges);
+      const { nodes } = this.graph();
       if (nodes.length) this.scheduleViewportFit();
     });
 
@@ -980,22 +990,44 @@ export class PromptDiagramPageComponent {
     });
 
     effect(() => {
-      const promptId = this.promptId();
-      if (!promptId || promptId === this.activeRunId) return;
+      const prompt = this.prompt();
+      if (!prompt || prompt.id === this.activeRunId) return;
 
-      this.activeRunId = promptId;
+      this.activeRunId = prompt.id;
       this.runEvents.set([]);
       this.streamError.set(null);
 
-      this.promptApi
-        .streamPromptRun(promptId)
-        .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe({
-          next: (event) => this.runEvents.update((events) => [...events, event]),
-          error: () =>
-            this.streamError.set('Prompt run stream disconnected unexpectedly.'),
-        });
+      const savedRun = prompt.runs?.find((run) => run.status !== 'running');
+      if (savedRun) {
+        this.promptApi
+          .getRunEvents(prompt.id, savedRun.id)
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe({
+            next: (events) => {
+              if (events.length) {
+                this.runEvents.set(events);
+              } else {
+                this.startRunStream(prompt.id);
+              }
+            },
+            error: () => this.startRunStream(prompt.id),
+          });
+        return;
+      }
+
+      this.startRunStream(prompt.id);
     });
+  }
+
+  private startRunStream(promptId: string): void {
+    this.promptApi
+      .streamPromptRun(promptId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (event) => this.runEvents.update((events) => [...events, event]),
+        error: () =>
+          this.streamError.set('Prompt run stream disconnected unexpectedly.'),
+      });
   }
 
   private eventLogEntries(event: PromptRunEvent): RunLogEntry[] {

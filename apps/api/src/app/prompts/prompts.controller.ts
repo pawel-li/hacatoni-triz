@@ -38,12 +38,19 @@ export class PromptsController {
     const run = await this.promptsService.createRun(prompt.id, prompt.method);
     let cost: PromptRunCostSummary | null = null;
     let failed = false;
+    let clientGone = false;
     const events: PromptRunEvent[] = [];
 
     response.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     response.setHeader('Cache-Control', 'no-cache, no-transform');
     response.setHeader('Connection', 'keep-alive');
     response.flushHeaders?.();
+    response.on('close', () => {
+      clientGone = true;
+    });
+    response.on('error', () => {
+      clientGone = true;
+    });
 
     try {
       for await (const event of this.agentRunService.streamPromptRun(prompt.text, prompt.method)) {
@@ -54,7 +61,32 @@ export class PromptsController {
           failed = true;
         }
         events.push(event);
-        response.write(`data: ${JSON.stringify(event)}\n\n`);
+        if (!clientGone) {
+          try {
+            response.write(`data: ${JSON.stringify(event)}\n\n`);
+          } catch {
+            clientGone = true;
+          }
+        }
+      }
+    } catch (error) {
+      failed = true;
+      const errorEvent: PromptRunEvent = {
+        id: `stream-error-${run.id}`,
+        type: 'error',
+        timestamp: new Date().toISOString(),
+        message: 'Prompt run stream failed.',
+        payload: {
+          detail: error instanceof Error ? error.message : String(error),
+        },
+      };
+      events.push(errorEvent);
+      if (!clientGone) {
+        try {
+          response.write(`data: ${JSON.stringify(errorEvent)}\n\n`);
+        } catch {
+          clientGone = true;
+        }
       }
     } finally {
       await this.promptsService.completeRun(
@@ -63,7 +95,9 @@ export class PromptsController {
         failed ? 'failed' : 'completed',
         events,
       );
-      response.end();
+      if (!clientGone) {
+        response.end();
+      }
     }
   }
 

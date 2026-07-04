@@ -33,6 +33,12 @@ export class PromptApiService {
     return this.http.post<Prompt>(`${this.apiUrl}/prompts`, { text, method });
   }
 
+  getRunEvents(promptId: string, runId: string): Observable<PromptRunEvent[]> {
+    return this.http.get<PromptRunEvent[]>(
+      `${this.apiUrl}/prompts/${encodeURIComponent(promptId)}/runs/${encodeURIComponent(runId)}/events`,
+    );
+  }
+
   streamPromptRun(id: string): Observable<PromptRunEvent> {
     return new Observable<PromptRunEvent>((subscriber) => {
       const eventSource = new EventSource(

@@ -9,6 +9,8 @@ export type RunCardVariant =
   | 'best'
   | 'terminal';
 
+export type RunCardMethod = 'triz' | 'biomimicry';
+
 export type RunCardNodeData = {
   stage: string;
   title: string;
@@ -17,6 +19,7 @@ export type RunCardNodeData = {
   meta?: string;
   badge?: string;
   variant: RunCardVariant;
+  method?: RunCardMethod;
 };
 
 @Component({
@@ -24,7 +27,13 @@ export type RunCardNodeData = {
   imports: [NgDiagramPortComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <article [class]="'run-card run-card--' + node().data.variant">
+    <article
+      [class]="
+        'run-card run-card--' +
+        node().data.variant +
+        (node().data.method ? ' run-card--' + node().data.method : '')
+      "
+    >
       <ng-diagram-port id="port-top" side="top" type="target" />
       @if (node().data.variant === 'best') {
         <span class="run-card__star" aria-hidden="true">★</span>
@@ -77,6 +86,28 @@ export type RunCardNodeData = {
     .run-card--candidate {
       background: #edf4e7;
       border-color: #1d3b2b;
+    }
+
+    .run-card--candidate.run-card--biomimicry,
+    .run-card--mechanism.run-card--biomimicry {
+      background: #e3efdb;
+      border-color: #2c5237;
+    }
+
+    .run-card--candidate.run-card--biomimicry .run-card__stage,
+    .run-card--mechanism.run-card--biomimicry .run-card__stage {
+      color: #2c5237;
+    }
+
+    .run-card--candidate.run-card--triz,
+    .run-card--mechanism.run-card--triz {
+      background: #f4e3d3;
+      border-color: #8a4a1f;
+    }
+
+    .run-card--candidate.run-card--triz .run-card__stage,
+    .run-card--mechanism.run-card--triz .run-card__stage {
+      color: #8a4a1f;
     }
 
     .run-card--best {
@@ -158,9 +189,8 @@ export type RunCardNodeData = {
     }
 
     .run-card__detail {
-      max-height: 6.6em;
-      overflow: auto;
       white-space: pre-line;
+      overflow-wrap: anywhere;
       border-left: 2px solid rgb(17 19 18 / 28%);
       padding-left: 12px;
       color: #111312;
