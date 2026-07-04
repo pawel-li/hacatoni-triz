@@ -37,8 +37,7 @@ const FRAG = /* glsl */ `
   precision mediump float;
 
   varying vec2  v_uv;
-  uniform float u_time;
-
+  uniform float u_time;  uniform vec2  u_res;
   /* ── Palette ───────────────────────────────────────────────── */
   const vec3 BG     = vec3(0.498, 0.753, 0.871);  /* #7FC0DE  */
   const vec3 TRI    = vec3(0.447, 0.067, 0.075);  /* #721113  */
@@ -57,8 +56,12 @@ const FRAG = /* glsl */ `
     /* Seamless infinite zoom — period ≈ 25 s */
     float zoom = pow(2.0, fract(u_time * 0.04));
 
+    /* Aspect-correct so pixels stay square regardless of the header    */
+    /* shape; the fract() IFS tiles the pattern across the wide banner.  */
+    float aspect = u_res.x / max(u_res.y, 1.0);
+
     /* Flip Y: triangle base faces the card body below */
-    vec2 uv = vec2(v_uv.x, 1.0 - v_uv.y);
+    vec2 uv = vec2(v_uv.x * aspect, 1.0 - v_uv.y);
 
     /* Zoom into (0,0) — the self-similar corner */
     vec2 p = uv / zoom;
@@ -113,8 +116,13 @@ export class TriangleCanvasComponent implements OnDestroy {
 
   private gl:    WebGLRenderingContext | null = null;
   private uTime: WebGLUniformLocation  | null = null;
+  private uRes:  WebGLUniformLocation  | null = null;
   private rafId  = 0;
   private t0     = 0;
+  private resizeObserver: ResizeObserver | null = null;
+
+  /** Fixed vertical resolution keeps the chunky pixel-art look. */
+  private static readonly BASE_HEIGHT = 110;
 
   constructor() {
     afterNextRender(() => this.boot());
@@ -122,6 +130,7 @@ export class TriangleCanvasComponent implements OnDestroy {
 
   ngOnDestroy(): void {
     cancelAnimationFrame(this.rafId);
+    this.resizeObserver?.disconnect();
     this.gl?.getExtension('WEBGL_lose_context')?.loseContext();
   }
 
@@ -131,8 +140,6 @@ export class TriangleCanvasComponent implements OnDestroy {
 
   private boot(): void {
     const canvas = this.canvasRef().nativeElement;
-    canvas.width  = 128;
-    canvas.height = 128;
 
     const gl = canvas.getContext('webgl', { antialias: false, alpha: false });
     if (!gl) {
@@ -155,8 +162,34 @@ export class TriangleCanvasComponent implements OnDestroy {
     gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
 
     this.uTime = gl.getUniformLocation(prog, 'u_time');
+    this.uRes  = gl.getUniformLocation(prog, 'u_res');
     this.t0    = performance.now();
+
+    /* Match the drawing buffer to the header aspect ratio so the        */
+    /* square fractal is never non-uniformly squashed into noise.        */
+    this.resize(canvas);
+    this.resizeObserver = new ResizeObserver(() => this.resize(canvas));
+    this.resizeObserver.observe(canvas);
+
     this.tick();
+  }
+
+  private resize(canvas: HTMLCanvasElement): void {
+    const gl = this.gl;
+    if (!gl) return;
+
+    const height = TriangleCanvasComponent.BASE_HEIGHT;
+    const aspect =
+      canvas.clientWidth > 0 && canvas.clientHeight > 0
+        ? canvas.clientWidth / canvas.clientHeight
+        : 1;
+    const width = Math.max(1, Math.round(height * aspect));
+
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width  = width;
+      canvas.height = height;
+    }
+    gl.viewport(0, 0, width, height);
   }
 
   private buildProgram(gl: WebGLRenderingContext): WebGLProgram | null {
@@ -204,6 +237,7 @@ export class TriangleCanvasComponent implements OnDestroy {
     if (!gl) return;
 
     gl.uniform1f(this.uTime, (performance.now() - this.t0) * 0.001);
+    gl.uniform2f(this.uRes, gl.drawingBufferWidth, gl.drawingBufferHeight);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
     this.rafId = requestAnimationFrame(this.tick);

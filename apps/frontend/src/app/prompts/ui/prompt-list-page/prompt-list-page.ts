@@ -27,7 +27,7 @@ const PAGE_SIZE = 12;
   imports: [DatePipe, FormsModule, RouterModule, TrizzCardComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="min-h-dvh bg-[#0f1110] text-[#efe8da]" aria-label="Prompts Page">
+    <main class="min-h-dvh bg-[#0f1110] text-[#efe8da]" aria-labelledby="prompts-page-title">
       <header class="px-5 py-5 sm:px-8">
         <div class="mx-auto flex w-full max-w-6xl flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
           <div class="space-y-2">
@@ -38,7 +38,10 @@ const PAGE_SIZE = 12;
             >
               ← Back
             </a>
-            <h1 class="font-soviet text-4xl font-extrabold leading-none text-[#efe8da] sm:text-5xl">
+            <h1
+              id="prompts-page-title"
+              class="font-soviet text-4xl font-extrabold leading-none text-[#efe8da] sm:text-5xl"
+            >
               Prompts
             </h1>
           </div>
@@ -53,15 +56,19 @@ const PAGE_SIZE = 12;
               type="search"
               [ngModel]="searchTerm()"
               (ngModelChange)="onSearchChange($event)"
+              [attr.aria-describedby]="'prompt-search-hint'"
               placeholder="Search prompt text"
               class="w-full rounded-none border border-dotted border-[#efe8da]/55 bg-transparent px-4 py-3 text-sm text-[#efe8da] outline-none placeholder:text-[#efe8da]/40 focus:border-[#efe8da] focus:ring-4 focus:ring-[#efe8da]/15"
               autocomplete="off"
             />
+            <p id="prompt-search-hint" class="mt-2 text-xs text-[#efe8da]/70">
+              Type to filter prompts. Results update automatically.
+            </p>
           </form>
         </div>
       </header>
 
-      <main class="mx-auto w-full max-w-6xl px-5 pb-12 sm:px-8">
+      <section class="mx-auto w-full max-w-6xl px-5 pb-12 sm:px-8">
         <p class="sr-only" aria-live="polite">{{ statusText() }}</p>
 
         @if (error()) {
@@ -72,16 +79,23 @@ const PAGE_SIZE = 12;
 
         @if (prompts().length) {
           <section
-            class="grid grid-cols-1 justify-items-center gap-6 md:grid-cols-2 xl:grid-cols-3"
+            id="prompt-results"
+            class="grid grid-cols-1 justify-items-center gap-6 sm:grid-cols-2 xl:grid-cols-3"
             aria-label="Prompt results"
+            [attr.aria-busy]="loading() || loadingMore()"
           >
+            <h2 class="sr-only">Prompt results list</h2>
             @for (prompt of prompts(); track prompt.id) {
               <nw-trizz-card [contentOnly]="true">
                 <a
                   [routerLink]="['/prompts', prompt.id]"
-                  class="block whitespace-pre-wrap text-[0.95rem] leading-7 text-[#111312] outline-none focus:ring-4 focus:ring-[#0b5f86]/30"
-                  [attr.aria-label]="'Open prompt created ' + (prompt.createdAt | date: 'medium')"
-                >{{ prompt.text }}</a>
+                  class="block space-y-2 whitespace-pre-wrap text-[0.95rem] leading-7 text-[#111312] outline-none [overflow-wrap:anywhere] focus-visible:ring-4 focus-visible:ring-[#0b5f86]/30"
+                >
+                  <time class="block text-xs font-semibold uppercase tracking-[0.06em] text-[#3e4440]" [attr.datetime]="prompt.createdAt">
+                    {{ prompt.createdAt | date: 'medium' }}
+                  </time>
+                  <span class="block break-words">{{ prompt.text }}</span>
+                </a>
               </nw-trizz-card>
             }
           </section>
@@ -93,8 +107,21 @@ const PAGE_SIZE = 12;
 
         <div #loadMoreTrigger class="h-14" aria-hidden="true"></div>
 
+        @if (nextCursor() && !loading() && !loadingMore()) {
+          <div class="mt-2 flex justify-center">
+            <button
+              type="button"
+              class="rounded-none border border-dotted border-[#efe8da]/60 px-4 py-2 text-xs font-bold uppercase tracking-[0.08em] text-[#efe8da] transition hover:bg-[#efe8da]/10 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#efe8da]/25"
+              (click)="loadMore()"
+              aria-controls="prompt-results"
+            >
+              Load more prompts
+            </button>
+          </div>
+        }
+
         @if (loading() || loadingMore()) {
-          <p class="text-center text-sm text-[#efe8da]/70" aria-live="polite">
+          <p class="text-center text-sm text-[#efe8da]/70" aria-hidden="true">
             Loading prompts...
           </p>
         } @else if (!nextCursor() && prompts().length) {
@@ -102,8 +129,8 @@ const PAGE_SIZE = 12;
             End of prompts.
           </p>
         }
-      </main>
-    </div>
+      </section>
+    </main>
   `,
 })
 export class PromptListPageComponent implements AfterViewInit, OnDestroy {
@@ -160,6 +187,10 @@ export class PromptListPageComponent implements AfterViewInit, OnDestroy {
   onSearchChange(value: string): void {
     this.searchTerm.set(value);
     this.searchChanges.next(value.trim());
+  }
+
+  loadMore(): void {
+    this.loadNextPage();
   }
 
   private loadFirstPage(search: string): void {

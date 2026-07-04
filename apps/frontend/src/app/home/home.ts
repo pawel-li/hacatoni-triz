@@ -15,7 +15,7 @@ import { PromptApiService } from '../prompts/data/prompt-api.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main
-      class="flex min-h-dvh flex-col bg-[#0f1110] px-4 pb-8 pt-4 text-[#efe8da] sm:px-8 lg:grid lg:h-dvh lg:grid-cols-2 lg:items-center lg:overflow-hidden lg:px-12 lg:pb-6"
+      class="flex min-h-dvh flex-col bg-[#0f1110] px-4 pb-8 pt-4 text-[#efe8da] sm:px-8 lg:grid lg:min-h-dvh lg:grid-cols-2 lg:items-center lg:px-12 lg:pb-6"
       aria-label="Home"
     >
       <section class="flex min-h-0 w-full flex-1 items-center justify-center py-2" aria-label="Prompt form">

@@ -3,7 +3,7 @@
   [class]="
     contentOnly()
       ? 'w-[min(92vw,430px)] grid-rows-1'
-      : 'w-full max-w-[min(94vw,calc((100dvh-2rem)*1.42),860px)] grid-rows-[150px_auto] sm:aspect-[1.42] sm:max-h-[calc(100dvh-2rem)] sm:grid-rows-[30%_70%]'
+      : 'w-full max-w-[min(94vw,860px)] grid-rows-[170px_auto] sm:min-h-[700px] sm:grid-rows-[32%_68%]'
   "
   [attr.aria-labelledby]="contentOnly() ? null : headingId()"
 >
@@ -22,7 +22,9 @@
 
   <!-- ── Body slot ───────────────────────────────────────────────── -->
   <section
-    class="flex h-full min-h-0 flex-col overflow-y-auto"
+    class="flex h-full min-h-0 flex-col"
+    [class.overflow-y-auto]="contentOnly()"
+    [class.overflow-visible]="!contentOnly()"
     [class.px-[30px]]="!contentOnly()"
     [class.pt-5]="!contentOnly()"
     [class.pb-5]="!contentOnly()"

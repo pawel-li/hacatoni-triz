@@ -15,7 +15,6 @@ import { ActivatedRoute, RouterModule } from '@angular/router';
 import {
   NgDiagramComponent,
   NgDiagramNodeTemplateMap,
-  NgDiagramService,
   NgDiagramViewportService,
   initializeModel,
   provideNgDiagram,
@@ -103,8 +102,17 @@ type RunLogEntry = {
         class="mx-auto mt-4 grid min-h-[68dvh] w-full max-w-6xl flex-1 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_340px]"
         aria-label="Prompt run workspace"
       >
-        <div class="diagram-panel" role="region" aria-label="Live prompt diagram">
-          <ng-diagram [model]="model" [nodeTemplateMap]="nodeTemplateMap" />
+        <div
+          #diagramHost
+          class="diagram-panel"
+          role="region"
+          aria-label="Live prompt diagram"
+        >
+          <ng-diagram
+            [model]="model"
+            [nodeTemplateMap]="nodeTemplateMap"
+            (diagramInit)="onDiagramInit()"
+          />
         </div>
 
         <aside class="log-panel" aria-label="Prompt run logs">
@@ -437,10 +445,8 @@ export class PromptDiagramPageComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
   private readonly promptApi = inject(PromptApiService);
-  private readonly ngDiagramService = inject(NgDiagramService);
   private readonly viewportService = inject(NgDiagramViewportService);
   private activeRunId: string | null = null;
-  private lastFocusedNodeId: string | null = null;
 
   readonly runEvents = signal<PromptRunEvent[]>([]);
   readonly streamError = signal<string | null>(null);
@@ -773,18 +779,57 @@ export class PromptDiagramPageComponent {
   private readonly logScroll =
     viewChild<ElementRef<HTMLElement>>('logScroll');
   private stickToBottom = true;
+  private diagramReady = false;
+  private viewportFitScheduled = false;
+  private pendingFit = false;
+  private readonly CARD_WIDTH = 340;
+  private readonly CARD_HEIGHT = 170;
+  private readonly FOLLOW_SCALE = 0.8;
+  private readonly diagramHost =
+    viewChild<ElementRef<HTMLElement>>('diagramHost');
 
-  private followLatestNode(latestNodeId: string | null): void {
-    if (!latestNodeId || latestNodeId === this.lastFocusedNodeId) return;
-    this.lastFocusedNodeId = latestNodeId;
-    if (!this.ngDiagramService.isInitialized()) return;
+  onDiagramInit(): void {
+    this.diagramReady = true;
+    if (this.pendingFit) {
+      this.pendingFit = false;
+      this.scheduleViewportFit();
+    }
+  }
+
+  private scheduleViewportFit(): void {
+    if (!this.diagramReady) {
+      this.pendingFit = true;
+      return;
+    }
+    if (this.viewportFitScheduled) return;
+    this.viewportFitScheduled = true;
     setTimeout(() => {
-      try {
-        this.viewportService.centerOnNode(latestNodeId);
-      } catch {
-        // viewport not ready yet
-      }
-    }, 60);
+      this.viewportFitScheduled = false;
+      this.centerOnLatestNode();
+    }, 140);
+  }
+
+  private centerOnLatestNode(): void {
+    const nodes = this.graph().nodes;
+    const latest = nodes.at(-1);
+    const host = this.diagramHost()?.nativeElement;
+    if (!latest || !host) return;
+
+    const width = host.clientWidth;
+    const height = host.clientHeight;
+    if (!width || !height) return;
+
+    const scale = this.FOLLOW_SCALE;
+    const centerX = latest.position.x + this.CARD_WIDTH / 2;
+    const centerY = latest.position.y + this.CARD_HEIGHT / 2;
+    const x = width / 2 - centerX * scale;
+    const y = height / 2 - centerY * scale;
+
+    try {
+      this.viewportService.setViewport(x, y, scale);
+    } catch {
+      // viewport not ready yet
+    }
   }
 
   onLogScroll(event: Event): void {
@@ -798,20 +843,7 @@ export class PromptDiagramPageComponent {
       const { nodes, edges } = this.graph();
       this.model.updateNodes(nodes);
       this.model.updateEdges(edges);
-      this.followLatestNode(nodes.at(-1)?.id ?? null);
-    });
-
-    effect(() => {
-      const tone = this.statusTone();
-      if (tone !== 'done' && tone !== 'failed') return;
-      if (!this.ngDiagramService.isInitialized()) return;
-      setTimeout(() => {
-        try {
-          this.viewportService.zoomToFit({ padding: 80 });
-        } catch {
-          // viewport not ready yet
-        }
-      }, 160);
+      if (nodes.length) this.scheduleViewportFit();
     });
 
     afterRenderEffect(() => {
@@ -830,7 +862,6 @@ export class PromptDiagramPageComponent {
       this.activeRunId = promptId;
       this.runEvents.set([]);
       this.streamError.set(null);
-      this.lastFocusedNodeId = null;
 
       this.promptApi
         .streamPromptRun(promptId)
