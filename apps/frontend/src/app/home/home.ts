@@ -103,7 +103,7 @@ import { PromptApiService } from '../prompts/data/prompt-api.service';
         </a>
         <a
           routerLink="/about"
-          class="border border-dotted border-[#efe8da]/55 px-5 py-4 text-center text-sm font-bold uppercase tracking-[0.08em] text-[#efe8da] transition hover:border-[#efe8da] hover:bg-[#efe8da]/10 focus:outline-none focus:ring-4 focus:ring-[#efe8da]/35 sm:flex-1 lg:text-left"
+          class="border-2 border-[#efe8da]/85 px-5 py-4 text-center text-sm font-bold uppercase tracking-[0.08em] text-[#efe8da] transition hover:border-[#efe8da] hover:bg-[#efe8da]/10 focus:outline-none focus:ring-4 focus:ring-[#efe8da]/35 sm:flex-1 lg:text-left"
         >
           O nas
         </a>
@@ -111,7 +111,7 @@ import { PromptApiService } from '../prompts/data/prompt-api.service';
           href="https://github.com/pawel-li/hacatoni-triz"
           target="_blank"
           rel="noreferrer"
-          class="border border-dotted border-[#efe8da]/55 px-5 py-4 text-center text-sm font-bold uppercase tracking-[0.08em] text-[#efe8da] transition hover:border-[#efe8da] hover:bg-[#efe8da]/10 focus:outline-none focus:ring-4 focus:ring-[#efe8da]/35 sm:flex-1 lg:text-left"
+          class="border-2 border-[#efe8da]/85 px-5 py-4 text-center text-sm font-bold uppercase tracking-[0.08em] text-[#efe8da] transition hover:border-[#efe8da] hover:bg-[#efe8da]/10 focus:outline-none focus:ring-4 focus:ring-[#efe8da]/35 sm:flex-1 lg:text-left"
           aria-label="Open BioTRIZZER GitHub repository in a new tab"
         >
           GitHub
