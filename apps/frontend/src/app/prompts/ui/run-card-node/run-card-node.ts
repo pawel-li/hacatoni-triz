@@ -46,7 +46,9 @@ export type RunCardNodeData = {
         }
       </div>
       <h3 class="run-card__title">{{ node().data.title }}</h3>
-      <p class="run-card__subtitle">{{ node().data.subtitle }}</p>
+      @if (node().data.subtitle) {
+        <p class="run-card__subtitle">{{ node().data.subtitle }}</p>
+      }
       @if (node().data.detail) {
         <p class="run-card__detail">{{ node().data.detail }}</p>
       }

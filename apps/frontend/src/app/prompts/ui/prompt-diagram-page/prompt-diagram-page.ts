@@ -845,9 +845,8 @@ export class PromptDiagramPageComponent {
             ? `04 kandydat TRIZ`
             : `04 kandydat ${index + 1}`,
         title: candidate?.tytul ?? 'Wygenerowany kandydat',
-        subtitle: candidate?.zrodlo_mechanizmu ?? event.message,
+        subtitle: '',
         detail: candidate?.opis || undefined,
-        meta: score?.rationale || undefined,
         badge: score
           ? `${best ? '★ ' : ''}${score.score}/100`
           : candidate?.fallback
