@@ -23,7 +23,7 @@ export class PromptsService {
       ...(options.cursor ? { cursor: { id: options.cursor }, skip: 1 } : {}),
       where: search ? { text: { contains: search } } : undefined,
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      select: { id: true, text: true, createdAt: true },
+      select: { id: true, text: true, method: true, createdAt: true },
     });
 
     const items = prompts.slice(0, take);
@@ -33,17 +33,17 @@ export class PromptsService {
     };
   }
 
-  async create(text: string) {
+  async create(text: string, method: string = 'biomimicry') {
     return this.prisma.prompt.create({
-      data: { text },
-      select: { id: true, text: true, createdAt: true },
+      data: { text, method },
+      select: { id: true, text: true, method: true, createdAt: true },
     });
   }
 
   async findOne(id: string) {
     const prompt = await this.prisma.prompt.findUnique({
       where: { id },
-      select: { id: true, text: true, createdAt: true },
+      select: { id: true, text: true, method: true, createdAt: true },
     });
     if (!prompt) {
       throw new NotFoundException(`Prompt with id "${id}" not found`);

@@ -1,3 +1,5 @@
+export type AnalysisMethod = 'triz' | 'biomimicry' | 'both';
+
 export interface ApiResponse {
   message: string;
 }
@@ -47,7 +49,7 @@ export interface PromptRunEvaluation {
 }
 
 export interface PromptRunReasoningTrail {
-  method: 'biomimicry';
+  method: AnalysisMethod;
   problem: string;
   function_query: string;
   similarity_ranking: PromptRunRankingRow[];
@@ -66,7 +68,11 @@ export type PromptRunEventType =
   | 'candidate'
   | 'scored'
   | 'run_completed'
-  | 'error';
+  | 'error'
+  | 'contradiction_found'
+  | 'triz_candidate'
+  | 'triz_evaluated'
+  | 'triz_selected';
 
 export interface PromptRunEventPayload {
   problem?: string;

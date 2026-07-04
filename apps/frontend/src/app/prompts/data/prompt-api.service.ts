@@ -29,8 +29,8 @@ export class PromptApiService {
     return this.http.get<Prompt>(`${this.apiUrl}/prompts/${id}`);
   }
 
-  createPrompt(text: string): Observable<Prompt> {
-    return this.http.post<Prompt>(`${this.apiUrl}/prompts`, { text });
+  createPrompt(text: string, method: string = 'biomimicry'): Observable<Prompt> {
+    return this.http.post<Prompt>(`${this.apiUrl}/prompts`, { text, method });
   }
 
   streamPromptRun(id: string): Observable<PromptRunEvent> {

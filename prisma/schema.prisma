@@ -10,6 +10,7 @@ datasource db {
 model Prompt {
   id        String   @id @default(cuid())
   text      String
+  method    String   @default("biomimicry")
   createdAt DateTime @default(now())
 
   @@map("prompts")

@@ -26,8 +26,9 @@ export class PromptsController {
 
   @Post()
   async create(@Body() dto: CreatePromptDto) {
-    const prompt = await this.promptsService.create(dto.text);
-    return { id: prompt.id, text: prompt.text, createdAt: prompt.createdAt };
+    const method = dto.method ?? 'biomimicry';
+    const prompt = await this.promptsService.create(dto.text, method);
+    return { id: prompt.id, text: prompt.text, method: prompt.method, createdAt: prompt.createdAt };
   }
 
   @Get(':id/run/stream')
@@ -40,7 +41,7 @@ export class PromptsController {
     response.flushHeaders?.();
 
     try {
-      for await (const event of this.agentRunService.streamPromptRun(prompt.text)) {
+      for await (const event of this.agentRunService.streamPromptRun(prompt.text, prompt.method)) {
         response.write(`data: ${JSON.stringify(event)}\n\n`);
       }
     } finally {
@@ -51,6 +52,6 @@ export class PromptsController {
   @Get(':id')
   async findOne(@Param('id') id: string) {
     const prompt = await this.promptsService.findOne(id);
-    return { id: prompt.id, text: prompt.text, createdAt: prompt.createdAt };
+    return { id: prompt.id, text: prompt.text, method: prompt.method, createdAt: prompt.createdAt };
   }
 }
