@@ -24,12 +24,7 @@
         ],
         "styles": [
           "apps/frontend/src/styles.css"
-        ],
-        "server": "apps/frontend/src/main.server.ts",
-        "ssr": {
-          "entry": "apps/frontend/src/server.ts"
-        },
-        "outputMode": "server"
+        ]
       },
       "configurations": {
         "production": {

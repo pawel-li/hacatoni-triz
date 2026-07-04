@@ -8,13 +8,37 @@
 
 ## Run tasks
 
-To run the dev server for your app, use:
+To run both the NestJS backend and the Angular frontend concurrently with one command, use:
+
+```sh
+npm run start
+```
+
+To run the Angular frontend along with the mock JSON API concurrently, use:
+
+```sh
+npm run start:fake
+```
+
+To run only the NestJS backend API:
+
+```sh
+npx nx serve api
+```
+
+To run only the Angular frontend (without the mock API):
 
 ```sh
 npx nx serve frontend
 ```
 
-To create a production bundle:
+To run only the mock JSON API:
+
+```sh
+npm run start:fake-api
+```
+
+To create a production bundle for the frontend:
 
 ```sh
 npx nx build frontend
