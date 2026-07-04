@@ -1,0 +1,35 @@
+<article
+  class="relative grid aspect-[0.78] w-[min(92vw,calc((100dvh-2rem)*0.78),430px)] grid-rows-[38%_62%] border-2 border-[#111312] bg-[#f4f2e8] shadow-[0_18px_42px_rgb(0_0_0_/_42%)] after:pointer-events-none after:absolute after:-inset-[6px] after:z-10 after:content-[''] after:[background:radial-gradient(circle,#111312_3px,transparent_3.4px)_left_top/12px_12px_repeat-x,radial-gradient(circle,#111312_3px,transparent_3.4px)_left_bottom/12px_12px_repeat-x,radial-gradient(circle,#111312_3px,transparent_3.4px)_left_top/12px_12px_repeat-y,radial-gradient(circle,#111312_3px,transparent_3.4px)_right_top/12px_12px_repeat-y]"
+  aria-labelledby="app-title"
+>
+  <div
+    class="relative overflow-hidden border-b border-[rgb(17_19_18_/_18%)] [background:linear-gradient(172deg,transparent_18%,#f4f2e8_18.4%_21%,transparent_21.5%_30%,#f4f2e8_30.4%_33%,transparent_33.5%),linear-gradient(8deg,transparent_22%,#f4f2e8_22.4%_25%,transparent_25.5%_38%,#f4f2e8_38.4%_41%,transparent_41.5%),radial-gradient(ellipse_at_18%_80%,#f4f2e8_0_20%,transparent_20.5%),radial-gradient(ellipse_at_72%_73%,#f4f2e8_0_24%,transparent_24.5%),linear-gradient(#2f85b6,#2f85b6)] before:absolute before:left-[-12%] before:top-[11%] before:block before:h-[17%] before:w-[72%] before:rotate-[-6deg] before:rounded-[50%] before:bg-[#f4f2e8] before:shadow-[inset_0_-3px_0_rgb(17_19_18_/_35%)] before:content-[''] after:absolute after:right-[-18%] after:top-[24%] after:block after:h-[14%] after:w-[68%] after:rotate-[8deg] after:rounded-[50%] after:bg-[#f4f2e8] after:shadow-[inset_0_-3px_0_rgb(17_19_18_/_35%)] after:content-['']"
+    aria-hidden="true"
+  >
+    <span class="absolute bottom-[25%] left-[12%] block h-[16%] w-[66%] rotate-[5deg] rounded-[50%] bg-[#f4f2e8] shadow-[inset_0_-3px_0_rgb(17_19_18_/_35%)]"></span>
+    <span class="absolute bottom-[39%] right-[-8%] block h-[12%] w-[48%] rotate-[-11deg] rounded-[50%] bg-[#f4f2e8] shadow-[inset_0_-3px_0_rgb(17_19_18_/_35%)]"></span>
+    <span class="absolute bottom-[11%] left-[-11%] block h-[10%] w-[42%] rotate-[-7deg] rounded-[50%] bg-[#f4f2e8] shadow-[inset_0_-3px_0_rgb(17_19_18_/_35%)]"></span>
+    <span class="absolute bottom-[16%] right-[28%] h-[21px] w-1 border-y-[12px] border-dotted border-y-[#f4f2e8] border-t-[3px]"></span>
+  </div>
+
+  <section class="px-[30px] pt-5">
+    <h1 id="app-title" class="font-soviet m-0 mb-2 text-[clamp(2rem,13vw,2.95rem)] font-extrabold leading-[0.95] tracking-normal text-[#111312]">BioTRIZZER</h1>
+    <p class="m-0 max-w-[230px] text-[clamp(0.93rem,4vw,1.08rem)] font-normal leading-[1.22] tracking-normal text-[#5d625d]">Takes your prompt, passes it to TRIZZ and biomimicry, and generates solutions.</p>
+
+    <div class="mt-3 grid gap-1.5">
+      <label for="ai-prompt" class="text-[0.72rem] font-bold uppercase leading-none tracking-[0.08em] text-[#111312]">AI prompt</label>
+      <textarea
+        id="ai-prompt"
+        name="ai-prompt"
+        rows="2"
+        maxlength="500"
+        placeholder="Write what you want BioTRIZZER to solve."
+        class="h-[54px] w-full resize-none overflow-y-auto rounded-none border-2 border-[#111312] bg-[#fbfaf1] px-3 py-2 text-[0.86rem] leading-snug text-[#111312] caret-[#111312] outline-none placeholder:text-[#646861] focus:border-[#0b5f86] focus:ring-4 focus:ring-[#0b5f86]/30"
+        [attr.aria-describedby]="'ai-prompt-help'"
+        [attr.aria-required]="true"
+      ></textarea>
+      <p id="ai-prompt-help" class="sr-only">Describe the task, plan, or reminder you want help with.</p>
+    </div>
+  </section>
+
+</article>

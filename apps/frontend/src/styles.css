@@ -1,1 +1,19 @@
 @import "tailwindcss";
+@import 'ng-diagram/styles.css';
+@source "./app/**/*.{html,ts}";
+@source "../../../libs/trizz-card/src";
+@source "./app/diagram/**/*.ts";
+
+body {
+  background-color: black;
+  color: white;
+  font-family: "Inter", sans-serif;
+}
+
+.font-soviet {
+  font-family: "Russo One", sans-serif !important;
+}
+
+.font-inter {
+  font-family: "Inter", sans-serif !important;
+}

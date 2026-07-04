@@ -15,7 +15,9 @@
     "skipDefaultLibCheck": true,
     "strict": true,
     "paths": {
-      "@nw/shared-types": ["./libs/shared-types/src/index.ts"]
+      "@nw/trizz-card": ["./libs/trizz-card/src/index.ts"],
+      "@nw/shared-types": ["./libs/shared-types/src/index.ts"],
+      "@nw/ui": ["./libs/ui/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

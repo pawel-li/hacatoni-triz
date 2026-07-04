@@ -1,23 +1,12 @@
 import { Module } from '@nestjs/common';
-import { SequelizeModule } from '@nestjs/sequelize';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { DatabaseService } from './db.service';
+import { PromptsModule } from './prompts/prompts.module';
+import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
-  imports: [
-    SequelizeModule.forRoot({
-      dialect: 'postgres',
-      host: 'localhost',
-      port: 5432,
-      username: 'postgres',
-      password: 'postgres',
-      database: 'nestDb',
-      models: [],
-      synchronize: false,
-    }),
-  ],
+  imports: [PrismaModule, PromptsModule],
   controllers: [AppController],
-  providers: [AppService, DatabaseService],
+  providers: [AppService],
 })
 export class AppModule {}

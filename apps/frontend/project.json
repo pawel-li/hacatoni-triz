@@ -23,7 +23,8 @@
           }
         ],
         "styles": [
-          "apps/frontend/src/styles.css"
+          "apps/frontend/src/styles.css",
+          "node_modules/ng-diagram/styles.css"
         ]
       },
       "configurations": {
