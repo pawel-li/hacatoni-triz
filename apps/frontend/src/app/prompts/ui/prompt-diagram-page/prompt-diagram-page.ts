@@ -15,6 +15,8 @@ import { ActivatedRoute, RouterModule } from '@angular/router';
 import {
   NgDiagramComponent,
   NgDiagramNodeTemplateMap,
+  NgDiagramService,
+  NgDiagramViewportService,
   initializeModel,
   provideNgDiagram,
 } from 'ng-diagram';
@@ -435,7 +437,10 @@ export class PromptDiagramPageComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
   private readonly promptApi = inject(PromptApiService);
+  private readonly ngDiagramService = inject(NgDiagramService);
+  private readonly viewportService = inject(NgDiagramViewportService);
   private activeRunId: string | null = null;
+  private lastFocusedNodeId: string | null = null;
 
   readonly runEvents = signal<PromptRunEvent[]>([]);
   readonly streamError = signal<string | null>(null);
@@ -769,6 +774,19 @@ export class PromptDiagramPageComponent {
     viewChild<ElementRef<HTMLElement>>('logScroll');
   private stickToBottom = true;
 
+  private followLatestNode(latestNodeId: string | null): void {
+    if (!latestNodeId || latestNodeId === this.lastFocusedNodeId) return;
+    this.lastFocusedNodeId = latestNodeId;
+    if (!this.ngDiagramService.isInitialized()) return;
+    setTimeout(() => {
+      try {
+        this.viewportService.centerOnNode(latestNodeId);
+      } catch {
+        // viewport not ready yet
+      }
+    }, 60);
+  }
+
   onLogScroll(event: Event): void {
     const el = event.target as HTMLElement;
     this.stickToBottom =
@@ -780,6 +798,20 @@ export class PromptDiagramPageComponent {
       const { nodes, edges } = this.graph();
       this.model.updateNodes(nodes);
       this.model.updateEdges(edges);
+      this.followLatestNode(nodes.at(-1)?.id ?? null);
+    });
+
+    effect(() => {
+      const tone = this.statusTone();
+      if (tone !== 'done' && tone !== 'failed') return;
+      if (!this.ngDiagramService.isInitialized()) return;
+      setTimeout(() => {
+        try {
+          this.viewportService.zoomToFit({ padding: 80 });
+        } catch {
+          // viewport not ready yet
+        }
+      }, 160);
     });
 
     afterRenderEffect(() => {
@@ -798,6 +830,7 @@ export class PromptDiagramPageComponent {
       this.activeRunId = promptId;
       this.runEvents.set([]);
       this.streamError.set(null);
+      this.lastFocusedNodeId = null;
 
       this.promptApi
         .streamPromptRun(promptId)
