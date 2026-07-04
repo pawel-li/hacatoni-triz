@@ -13,6 +13,18 @@ export const appRoutes: Route[] = [
       ),
   },
   {
+    path: 'about',
+    loadComponent: () =>
+      import('./about/about').then((m) => m.AboutComponent),
+  },
+  {
+    path: 'prompts',
+    loadComponent: () =>
+      import('./prompts/ui/prompt-list-page/prompt-list-page').then(
+        (m) => m.PromptListPageComponent
+      ),
+  },
+  {
     path: 'prompts/:id',
     loadComponent: () =>
       import('./prompts/ui/prompt-diagram-page/prompt-diagram-page').then(

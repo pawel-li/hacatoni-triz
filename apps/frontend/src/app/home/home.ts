@@ -5,20 +5,20 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { TrizzCardComponent } from '@nw/trizz-card';
 import { PromptApiService } from '../prompts/data/prompt-api.service';
 
 @Component({
   selector: 'app-home',
-  imports: [TrizzCardComponent, FormsModule],
+  imports: [TrizzCardComponent, FormsModule, RouterModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main
-      class="grid min-h-dvh place-items-center overflow-hidden bg-[#0f1110] p-4"
+      class="min-h-dvh overflow-hidden bg-[#0f1110] px-5 pb-6 pt-3 text-[#efe8da] sm:px-8 sm:pt-4 lg:grid lg:grid-cols-2 lg:items-center lg:px-12"
       aria-label="Home"
     >
-      <div class="flex flex-col items-center gap-8">
+      <section class="flex min-h-[calc(100dvh-2.25rem)] w-full items-center justify-center sm:min-h-[calc(100dvh-2.5rem)]" aria-label="Prompt form">
         <nw-trizz-card>
           <!-- Prompt form -->
           <form
@@ -59,7 +59,34 @@ import { PromptApiService } from '../prompts/data/prompt-api.service';
             </button>
           </form>
         </nw-trizz-card>
-      </div>
+      </section>
+
+      <nav
+        class="mx-auto mt-4 flex w-full max-w-[300px] flex-col gap-3 lg:mt-0 lg:items-stretch"
+        aria-label="Main menu"
+      >
+        <a
+          routerLink="/prompts"
+          class="border border-dotted border-[#efe8da]/55 px-5 py-4 text-sm font-bold uppercase tracking-[0.08em] text-[#efe8da] transition hover:border-[#efe8da] hover:bg-[#efe8da]/10 focus:outline-none focus:ring-4 focus:ring-[#efe8da]/35"
+        >
+          Prompts
+        </a>
+        <a
+          routerLink="/about"
+          class="border border-dotted border-[#efe8da]/55 px-5 py-4 text-sm font-bold uppercase tracking-[0.08em] text-[#efe8da] transition hover:border-[#efe8da] hover:bg-[#efe8da]/10 focus:outline-none focus:ring-4 focus:ring-[#efe8da]/35"
+        >
+          O nas
+        </a>
+        <a
+          href="https://github.com/pawel-li/hacatoni-triz"
+          target="_blank"
+          rel="noreferrer"
+          class="border border-dotted border-[#efe8da]/55 px-5 py-4 text-sm font-bold uppercase tracking-[0.08em] text-[#efe8da] transition hover:border-[#efe8da] hover:bg-[#efe8da]/10 focus:outline-none focus:ring-4 focus:ring-[#efe8da]/35"
+          aria-label="Open BioTRIZZER GitHub repository in a new tab"
+        >
+          GitHub
+        </a>
+      </nav>
     </main>
   `,
 })

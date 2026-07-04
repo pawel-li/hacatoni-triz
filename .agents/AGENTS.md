@@ -17,5 +17,20 @@ Features should be divided into logical domains. Within each domain, adhere to t
 - **Types files**: All custom types and interfaces must be defined in dedicated `types.ts` files within the appropriate folder.
 
 ## 4. Styling & Accessibility (WCAG)
-- **Tailwind CSS**: ALWAYS use Tailwind CSS utility classes for styling.
-- **Accessibility**: Follow all WCAG accessibility rules strictly. Ensure semantic HTML, proper `aria` attributes, and keyboard navigability.
+- **Tailwind CSS**: ALWAYS use Tailwind CSS utility classes for styling. Prefer viewport-relative units (e.g. `dvh`) so layouts never exceed the user's screen.
+- **Accessibility**: Follow all WCAG accessibility rules strictly. Ensure semantic HTML (`<main>`, `<section>`, `<nav>`), proper `aria` attributes (`aria-label`, `aria-required`, `role="alert"`), and keyboard navigability.
+
+## 5. Change Detection
+- **OnPush is REQUIRED**: Every component must declare `changeDetection: ChangeDetectionStrategy.OnPush`.
+
+## 6. Dependency Injection
+- **Use `inject()`**: Always inject dependencies with the `inject()` function assigned to `private readonly` fields. Do not use constructor injection.
+- **Services**: Data services live in `data/` and must be `@Injectable({ providedIn: 'root' })`, returning `Observable`s from `HttpClient`.
+- **Injection Tokens**: Configuration values (e.g. API URLs) must be provided through dedicated `InjectionToken`s, never hard-coded.
+
+## 7. Standalone Components
+- **Standalone only**: Do not use `NgModule`s. Declare dependencies in the component `imports` array.
+
+## 8. State & Async Feedback
+- **Reactive state**: Model loading, disabled, and error states as signals (e.g. `submitting`, `errorMsg`) and drive the template from them.
+- **Guard async actions**: Prevent duplicate submissions by checking and setting the loading signal before dispatching a request, and reset it on error.

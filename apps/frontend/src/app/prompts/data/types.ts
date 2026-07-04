@@ -3,3 +3,8 @@ export interface Prompt {
   text: string;
   createdAt: string;
 }
+
+export interface PromptListResponse {
+  items: Prompt[];
+  nextCursor: string | null;
+}
