@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Post, Query, Res } from '@nestjs/common';
-import { PromptRunCostSummary } from '@nw/shared-types';
+import { PromptRunCostSummary, PromptRunEvent } from '@nw/shared-types';
 import { Response } from 'express';
 import { AgentRunService } from './agent-run.service';
 import { PromptsService } from './prompts.service';
@@ -38,6 +38,7 @@ export class PromptsController {
     const run = await this.promptsService.createRun(prompt.id, prompt.method);
     let cost: PromptRunCostSummary | null = null;
     let failed = false;
+    const events: PromptRunEvent[] = [];
 
     response.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     response.setHeader('Cache-Control', 'no-cache, no-transform');
@@ -52,12 +53,23 @@ export class PromptsController {
         if (event.type === 'error') {
           failed = true;
         }
+        events.push(event);
         response.write(`data: ${JSON.stringify(event)}\n\n`);
       }
     } finally {
-      await this.promptsService.completeRun(run.id, cost, failed ? 'failed' : 'completed');
+      await this.promptsService.completeRun(
+        run.id,
+        cost,
+        failed ? 'failed' : 'completed',
+        events,
+      );
       response.end();
     }
+  }
+
+  @Get(':id/runs/:runId/events')
+  async getRunEvents(@Param('id') id: string, @Param('runId') runId: string) {
+    return this.promptsService.getRunEvents(id, runId);
   }
 
   @Get(':id')

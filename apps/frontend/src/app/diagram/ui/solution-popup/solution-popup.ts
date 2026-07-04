@@ -73,16 +73,24 @@ import { DiagramStateService } from '../../data/diagram-state.service';
 
     .popup {
       background: #f4f2e8;
-      border: 2px dotted #111312;
-      border-radius: 4px;
+      border: 2px solid #111312;
       padding: 36px 36px 28px;
       max-width: 380px;
       width: 90vw;
       display: flex;
       flex-direction: column;
       align-items: center;
-      box-shadow: 0 32px 80px rgb(0 0 0 / 70%);
+      position: relative;
+      box-shadow: 0 32px 80px rgb(0 0 0 / 62%);
       animation: popupIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    }
+
+    .popup::before {
+      content: '';
+      position: absolute;
+      inset: 7px;
+      border: 1px solid rgb(17 19 18 / 12%);
+      pointer-events: none;
     }
 
     .popup__score-wrap {
@@ -132,7 +140,6 @@ import { DiagramStateService } from '../../data/diagram-state.service';
       font-size: 0.6rem;
       letter-spacing: 0.18em;
       padding: 3px 12px;
-      border-radius: 2px;
       margin-bottom: 10px;
     }
 
@@ -155,9 +162,8 @@ import { DiagramStateService } from '../../data/diagram-state.service';
 
     .popup__close {
       background: transparent;
-      border: 1.5px solid rgba(17, 19, 18, 0.3);
+      border: 2px solid rgba(17, 19, 18, 0.42);
       color: #111312;
-      border-radius: 2px;
       padding: 8px 22px;
       font-family: 'Inter', sans-serif;
       font-size: 0.82rem;

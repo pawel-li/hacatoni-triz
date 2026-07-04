@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { PromptRunCostSummary } from '@nw/shared-types';
+import { PromptRunCostSummary, PromptRunEvent } from '@nw/shared-types';
 import { PrismaService } from '../prisma/prisma.service';
 
 const DEFAULT_PROMPT_PAGE_SIZE = 12;
@@ -87,6 +87,7 @@ export class PromptsService {
     id: string,
     cost: PromptRunCostSummary | null,
     status: 'completed' | 'failed' = 'completed',
+    events: PromptRunEvent[] = [],
   ) {
     return this.prisma.promptRun.update({
       where: { id },
@@ -100,8 +101,26 @@ export class PromptsService {
         totalTokens: cost?.totalTokens ?? 0,
         costUsd: cost?.totalCostUsd ?? 0,
         currency: cost?.currency ?? 'USD',
+        events: JSON.stringify(events),
       },
       select: { id: true },
     });
+  }
+
+  async getRunEvents(promptId: string, runId: string): Promise<PromptRunEvent[]> {
+    const run = await this.prisma.promptRun.findFirst({
+      where: { id: runId, promptId },
+      select: { events: true },
+    });
+    if (!run) {
+      throw new NotFoundException(
+        `Run with id "${runId}" not found for prompt "${promptId}"`,
+      );
+    }
+    try {
+      return JSON.parse(run.events) as PromptRunEvent[];
+    } catch {
+      return [];
+    }
   }
 }

@@ -58,14 +58,21 @@ import { DiagramStateService } from '../../data/diagram-state.service';
 
     .trizz-node {
       background: #f4f2e8;
-      border: 2px dotted #111312;
-      border-radius: 4px;
-      padding: 20px 22px 16px;
+      border: 2px solid #111312;
+      padding: 22px 22px 18px;
       min-width: 240px;
       max-width: 270px;
       position: relative;
-      box-shadow: 0 18px 42px rgb(0 0 0 / 60%);
+      box-shadow: 0 18px 42px rgb(0 0 0 / 42%);
       animation: nodeEnter 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    }
+
+    .trizz-node::before {
+      content: '';
+      position: absolute;
+      inset: 6px;
+      border: 1px solid rgb(17 19 18 / 12%);
+      pointer-events: none;
     }
 
     .trizz-node__header {
@@ -73,12 +80,14 @@ import { DiagramStateService } from '../../data/diagram-state.service';
       align-items: center;
       gap: 10px;
       margin-bottom: 14px;
+      border-bottom: 2px solid rgb(17 19 18 / 16%);
+      padding-bottom: 10px;
     }
 
     .trizz-node__num {
       font-family: 'Russo One', sans-serif;
       font-size: 1.5rem;
-      color: rgba(17, 19, 18, 0.18);
+      color: rgba(17, 19, 18, 0.28);
       line-height: 1;
     }
 
@@ -100,9 +109,8 @@ import { DiagramStateService } from '../../data/diagram-state.service';
     .trizz-node__tag {
       font-family: 'Russo One', sans-serif;
       font-size: 0.55rem;
-      letter-spacing: 0.12em;
-      padding: 3px 7px;
-      border-radius: 2px;
+      letter-spacing: 0.1em;
+      padding: 4px 8px;
       flex-shrink: 0;
       margin-top: 2px;
     }
@@ -124,9 +132,9 @@ import { DiagramStateService } from '../../data/diagram-state.service';
 
     .trizz-node__text {
       font-family: 'Inter', sans-serif;
-      font-size: 0.78rem;
+      font-size: 0.8rem;
       color: #111312;
-      line-height: 1.45;
+      line-height: 1.5;
     }
 
     .trizz-node__divider {
@@ -139,8 +147,7 @@ import { DiagramStateService } from '../../data/diagram-state.service';
       width: 100%;
       background: #111312;
       color: #f4f2e8;
-      border: none;
-      border-radius: 2px;
+      border: 2px solid #111312;
       padding: 10px 14px;
       font-family: 'Russo One', sans-serif;
       font-size: 0.72rem;
@@ -150,8 +157,14 @@ import { DiagramStateService } from '../../data/diagram-state.service';
     }
 
     .trizz-node__btn:hover {
-      background: #2f85b6;
+      background: #f4f2e8;
+      color: #111312;
       transform: translateY(-1px);
+    }
+
+    .trizz-node__btn:focus-visible {
+      outline: 3px solid rgb(17 19 18 / 35%);
+      outline-offset: 3px;
     }
 
     .trizz-node__btn:active {

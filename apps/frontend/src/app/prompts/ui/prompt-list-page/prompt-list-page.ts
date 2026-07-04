@@ -28,8 +28,8 @@ const PAGE_SIZE = 12;
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main class="min-h-dvh bg-[#0f1110] text-[#efe8da]" aria-labelledby="prompts-page-title">
-      <header class="px-5 py-5 sm:px-8">
-        <div class="mx-auto flex w-full max-w-6xl flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+      <header class="px-5 pb-4 pt-5 sm:px-8">
+        <div class="mx-auto flex w-full max-w-6xl flex-col gap-3">
           <div class="space-y-2">
             <a
               routerLink="/"
@@ -45,28 +45,31 @@ const PAGE_SIZE = 12;
               Prompts
             </h1>
           </div>
+        </div>
+      </header>
 
-          <form class="w-full max-w-sm" role="search" aria-label="Search prompts" (submit)="$event.preventDefault()">
-            <label for="prompt-search" class="mb-2 block text-xs font-bold uppercase tracking-[0.08em] text-[#efe8da]/70">
-              Search
-            </label>
+      <section class="px-5 pb-8 sm:px-8">
+        <div class="mx-auto w-full max-w-6xl">
+          <form
+            class="w-full border border-dotted border-[#efe8da]/45 bg-[linear-gradient(135deg,rgba(239,232,218,0.08),rgba(239,232,218,0.02))] p-4 sm:p-5"
+            role="search"
+            aria-label="Search prompts"
+            (submit)="$event.preventDefault()"
+          >
             <input
               id="prompt-search"
               name="prompt-search"
               type="search"
+              aria-label="Search prompts"
               [ngModel]="searchTerm()"
               (ngModelChange)="onSearchChange($event)"
-              [attr.aria-describedby]="'prompt-search-hint'"
-              placeholder="Search prompt text"
-              class="w-full rounded-none border border-dotted border-[#efe8da]/55 bg-transparent px-4 py-3 text-sm text-[#efe8da] outline-none placeholder:text-[#efe8da]/40 focus:border-[#efe8da] focus:ring-4 focus:ring-[#efe8da]/15"
+              placeholder="Search"
+              class="w-full rounded-none border border-dotted border-[#efe8da]/55 bg-[#0f1110]/55 px-4 py-3 text-sm text-[#efe8da] outline-none placeholder:text-[#efe8da]/55 focus:border-[#efe8da] focus:ring-4 focus:ring-[#efe8da]/15"
               autocomplete="off"
             />
-            <p id="prompt-search-hint" class="mt-2 text-xs text-[#efe8da]/70">
-              Type to filter prompts. Results update automatically.
-            </p>
           </form>
         </div>
-      </header>
+      </section>
 
       <section class="mx-auto w-full max-w-6xl px-5 pb-12 sm:px-8">
         <p class="sr-only" aria-live="polite">{{ statusText() }}</p>

@@ -28,14 +28,21 @@ import { PromptNodeData } from '../../data/types';
 
     .prompt-node {
       background: #f4f2e8;
-      border: 2px dotted #111312;
-      border-radius: 4px;
-      padding: 24px 28px;
+      border: 2px solid #111312;
+      padding: 26px 28px 24px;
       min-width: 340px;
       max-width: 420px;
       position: relative;
-      box-shadow: 0 18px 42px rgb(0 0 0 / 60%);
+      box-shadow: 0 18px 42px rgb(0 0 0 / 42%);
       animation: nodeEnter 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    }
+
+    .prompt-node::before {
+      content: '';
+      position: absolute;
+      inset: 7px;
+      border: 1px solid rgb(17 19 18 / 12%);
+      pointer-events: none;
     }
 
     .prompt-node__badge {
@@ -44,15 +51,14 @@ import { PromptNodeData } from '../../data/types';
       color: #f4f2e8;
       font-family: 'Russo One', sans-serif;
       font-size: 0.65rem;
-      letter-spacing: 0.15em;
-      padding: 3px 10px;
-      border-radius: 2px;
-      margin-bottom: 12px;
+      letter-spacing: 0.12em;
+      padding: 4px 10px;
+      margin-bottom: 14px;
     }
 
     .prompt-node__title {
       font-family: 'Russo One', sans-serif;
-      font-size: 1.05rem;
+      font-size: 1.12rem;
       color: #111312;
       margin: 0 0 8px;
       line-height: 1.3;
@@ -61,9 +67,9 @@ import { PromptNodeData } from '../../data/types';
     .prompt-node__subtitle {
       font-family: 'Inter', sans-serif;
       font-size: 0.85rem;
-      color: #5d625d;
+      color: rgb(17 19 18 / 76%);
       margin: 0;
-      line-height: 1.4;
+      line-height: 1.5;
     }
 
     @keyframes nodeEnter {

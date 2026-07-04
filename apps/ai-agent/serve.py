@@ -7,7 +7,7 @@ from pathlib import Path
 
 from ai_agent.biomimicry import stream_biomimicry_run
 from ai_agent.combined import stream_both_run
-from ai_agent.triz import stream_triz_stub_run
+from ai_agent.triz import stream_triz_run
 from ai_agent.hello import hello
 
 
@@ -61,7 +61,7 @@ class Handler(BaseHTTPRequestHandler):
             method = str(payload.get("method", "biomimicry")).strip()
 
             if method == "triz":
-                for event in stream_triz_stub_run(prompt):
+                for event in stream_triz_run(prompt):
                     self._write_sse_event(event)
             elif method == "both":
                 for event in stream_both_run(prompt, function_query):

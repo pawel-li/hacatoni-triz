@@ -11,30 +11,6 @@ from uuid import uuid4
 from ai_agent.gemini import GeminiCostMeter, generate_json
 
 
-def stream_triz_stub_run(problem: str) -> Iterator[dict[str, Any]]:
-    """Temporary TRIZ stub: does no work, just reports start and completion."""
-    normalized_problem = problem.strip()
-    meter = GeminiCostMeter()
-
-    yield _event(
-        "run_started",
-        "TRIZ agent started.",
-        {
-            "problem": normalized_problem,
-            "agent": "triz",
-            "model": meter.model,
-            "provider": meter.provider,
-        },
-    )
-    cost = meter.summary()
-    yield _event(
-        "run_cost",
-        f"Estimated Gemini cost: ${cost['totalCostUsd']:.6f}.",
-        {"cost": cost},
-    )
-    yield _event("run_completed", "TRIZ agent done.", {"agent": "triz", "cost": cost})
-
-
 def stream_triz_candidates(
     problem: str, meter: GeminiCostMeter | None = None
 ) -> Iterator[dict[str, Any]]:
@@ -71,7 +47,12 @@ def stream_triz_candidates(
 
 
 def stream_triz_run(problem: str) -> Iterator[dict[str, Any]]:
-    """Yield JSON-serializable events for a TRIZ prompt run."""
+    """Yield JSON-serializable events for a standalone TRIZ prompt run.
+
+    Emits the same event types the frontend diagram understands
+    (contradiction_found, candidate with T* ids, scored, run_cost,
+    run_completed).
+    """
     normalized_problem = problem.strip()
     meter = GeminiCostMeter()
 
@@ -81,85 +62,23 @@ def stream_triz_run(problem: str) -> Iterator[dict[str, Any]]:
         {"problem": normalized_problem, "model": meter.model, "provider": meter.provider},
     )
 
-    yield _event("log", "Step 1: Reformulating problem as Technical Contradiction...")
+    candidates: list[dict[str, Any]] = []
+    contradiction: dict[str, Any] = {}
+    for event in stream_triz_candidates(normalized_problem, meter):
+        if event.get("type") == "candidate":
+            candidates.append(event.get("payload", {}).get("candidate") or {})
+        elif event.get("type") == "contradiction_found":
+            contradiction = event.get("payload", {}).get("contradiction") or {}
+        yield event
 
-    contradiction = _reformulate_contradiction(normalized_problem, meter)
-    yield _event(
-        "contradiction_found",
-        f"Technical contradiction identified: {contradiction.get('triz_contradiction_statement', '')}",
-        {"contradiction": contradiction},
-    )
-
-    yield _event("log", "Step 2: Generating TRIZ candidate solutions...")
-    candidates = _generate_triz_solutions(normalized_problem, contradiction, meter)
-    for i, candidate in enumerate(candidates):
-        yield _event(
-            "triz_candidate",
-            f"TRIZ candidate {i+1}: {candidate.get('name', '')}",
-            {"candidate": candidate},
-        )
-
-    yield _event("log", "Step 3: Evaluating TRIZ candidates...")
-    evaluations = _evaluate_candidates(normalized_problem, candidates, meter)
-    yield _event(
-        "triz_evaluated",
-        f"Evaluated {len(evaluations)} candidates.",
-        {"evaluations": evaluations},
-    )
-
-    yield _event("log", "Step 4: Selecting best candidate...")
-    selection = _select_best_candidate(normalized_problem, evaluations, meter)
-    yield _event(
-        "triz_selected",
-        f"Selected: {selection.get('selected_candidate_name', '')}",
-        {"selection": selection},
-    )
-
-    overall_score = _compute_overall_score(evaluations, selection)
+    yield _event("log", "TRIZ: evaluating candidate solutions...")
+    evaluation = _score_triz_candidates(normalized_problem, candidates, meter)
     yield _event(
         "scored",
-        f"Best solution scored {overall_score}/100.",
-        {
-            "evaluation": {
-                "overallScore": overall_score,
-                "bestCandidateId": selection.get("selected_candidate_name", ""),
-                "verdict": selection.get("reasoning", ""),
-                "candidateScores": [
-                    {
-                        "id": ev.get("candidate_name", f"T{i+1}"),
-                        "tytul": ev.get("candidate_name", ""),
-                        "score": ev.get("score", 0) * 10,
-                        "criteria": [
-                            {"name": "Pro", "score": len(ev.get("pros", [])) * 20, "weight": 0.5},
-                            {"name": "Con", "score": max(0, 100 - len(ev.get("cons", [])) * 20), "weight": 0.5},
-                        ],
-                        "rationale": "; ".join(ev.get("pros", [])),
-                    }
-                    for i, ev in enumerate(evaluations)
-                ],
-            }
-        },
+        f"Best solution scored {evaluation['overallScore']}/100.",
+        {"evaluation": evaluation},
     )
 
-    reasoning_trail = {
-        "method": "triz",
-        "problem": normalized_problem,
-        "function_query": "",
-        "similarity_ranking": [],
-        "selected_mechanisms": [],
-        "candidates": [
-            {
-                "id": f"T{i+1}",
-                "zrodlo_mechanizmu": c.get("principle_used", "TRIZ"),
-                "tytul": c.get("name", ""),
-                "opis": c.get("description", ""),
-            }
-            for i, c in enumerate(candidates)
-        ],
-        "contradiction": contradiction,
-        "triz_evaluations": evaluations,
-        "triz_selection": selection,
-    }
     cost = meter.summary()
     yield _event(
         "run_cost",
@@ -169,8 +88,75 @@ def stream_triz_run(problem: str) -> Iterator[dict[str, Any]]:
     yield _event(
         "run_completed",
         "TRIZ run completed.",
-        {"reasoningTrail": reasoning_trail, "cost": cost},
+        {
+            "reasoningTrail": {
+                "method": "triz",
+                "problem": normalized_problem,
+                "function_query": "",
+                "similarity_ranking": [],
+                "selected_mechanisms": [],
+                "candidates": candidates,
+                "contradiction": contradiction,
+                "evaluation": evaluation,
+            },
+            "cost": cost,
+        },
     )
+
+
+def _score_triz_candidates(
+    problem: str, candidates: list[dict[str, Any]], meter: GeminiCostMeter | None = None
+) -> dict[str, Any]:
+    """Evaluate T* candidates and build a diagram-compatible evaluation."""
+    raw = [
+        {
+            "name": c.get("tytul", ""),
+            "description": c.get("opis", ""),
+            "principle_used": c.get("zrodlo_mechanizmu", ""),
+        }
+        for c in candidates
+    ]
+    evaluations = _evaluate_candidates(problem, raw, meter)
+    selection = _select_best_candidate(problem, evaluations, meter)
+
+    candidate_scores: list[dict[str, Any]] = []
+    for i, candidate in enumerate(candidates):
+        ev = next(
+            (e for e in evaluations if e.get("candidate_name") == candidate.get("tytul")),
+            evaluations[i] if i < len(evaluations) else {},
+        )
+        score = min(max(int(ev.get("score", 5)) * 10, 0), 100)
+        candidate_scores.append(
+            {
+                "id": candidate.get("id", f"T{i + 1}"),
+                "tytul": candidate.get("tytul", ""),
+                "score": score,
+                "criteria": [
+                    {"name": "Zalety", "score": min(len(ev.get("pros", [])) * 25, 100), "weight": 0.5},
+                    {"name": "Wady", "score": max(0, 100 - len(ev.get("cons", [])) * 25), "weight": 0.5},
+                ],
+                "rationale": "; ".join(ev.get("pros", [])[:2]),
+            }
+        )
+
+    selected_name = selection.get("selected_candidate_name", "")
+    best_id = next(
+        (c.get("id") for c in candidates if c.get("tytul") == selected_name),
+        None,
+    )
+    if not best_id and candidate_scores:
+        best_id = max(candidate_scores, key=lambda s: s["score"])["id"]
+    overall = next(
+        (s["score"] for s in candidate_scores if s["id"] == best_id),
+        max((s["score"] for s in candidate_scores), default=0),
+    )
+
+    return {
+        "overallScore": overall,
+        "bestCandidateId": best_id or "",
+        "verdict": selection.get("reasoning", ""),
+        "candidateScores": candidate_scores,
+    }
 
 
 def _reformulate_contradiction(
@@ -258,16 +244,6 @@ selected_candidate_name, reasoning.""",
 
 def _call_llm(prompt: str, meter: GeminiCostMeter | None = None) -> str:
     return generate_json(prompt, meter=meter)
-
-
-def _compute_overall_score(evaluations: list[dict], selection: dict) -> int:
-    selected_name = selection.get("selected_candidate_name", "")
-    for ev in evaluations:
-        if ev.get("candidate_name") == selected_name:
-            return min(ev.get("score", 5) * 10, 100)
-    if evaluations:
-        return min(max(ev.get("score", 5) for ev in evaluations) * 10, 100)
-    return 50
 
 
 # --- Fallbacks (when no API key is available) ---

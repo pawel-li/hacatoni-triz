@@ -24,7 +24,7 @@ export type RunCardNodeData = {
   imports: [NgDiagramPortComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <article class="run-card" [class]="'run-card--' + node().data.variant" role="article">
+    <article [class]="'run-card run-card--' + node().data.variant" role="article">
       <ng-diagram-port id="port-top" side="top" type="target" />
       @if (node().data.variant === 'best') {
         <span class="run-card__star" aria-hidden="true">★</span>
@@ -52,36 +52,45 @@ export type RunCardNodeData = {
     }
 
     .run-card {
-      width: 340px;
-      border: 1px dotted rgb(17 19 18 / 75%);
+      width: 360px;
+      border: 2px solid #111312;
       background: #f4f2e8;
       color: #111312;
-      padding: 18px 20px;
+      padding: 20px 22px 18px;
       position: relative;
-      box-shadow: 0 18px 34px rgb(0 0 0 / 38%);
+      box-shadow: 0 18px 42px rgb(0 0 0 / 42%);
       animation: cardEnter 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
     }
 
+    .run-card::before {
+      content: '';
+      position: absolute;
+      inset: 6px;
+      border: 1px solid rgb(17 19 18 / 12%);
+      pointer-events: none;
+    }
+
     .run-card--mechanism {
-      background: #f7efd0;
+      background: #efe8da;
     }
 
     .run-card--candidate {
-      background: #e7f0e2;
+      background: #edf4e7;
+      border-color: #1d3b2b;
     }
 
     .run-card--best {
-      background: linear-gradient(140deg, #f9edbc, #edc95f);
-      border: 1px solid rgb(146 108 22 / 85%);
+      background: #f7e2a0;
+      border: 2px solid #7d5911;
       box-shadow:
-        0 0 0 3px rgb(232 194 88 / 25%),
-        0 18px 40px rgb(232 194 88 / 30%);
+        0 0 0 4px rgb(239 232 218 / 22%),
+        0 18px 44px rgb(0 0 0 / 45%);
     }
 
     .run-card--best .run-card__badge {
-      border-color: rgb(146 108 22 / 70%);
-      color: rgb(87 62 8 / 90%);
-      font-weight: 800;
+      background: #7d5911;
+      border-color: #7d5911;
+      color: #fff8dc;
     }
 
     .run-card__star {
@@ -96,7 +105,8 @@ export type RunCardNodeData = {
     }
 
     .run-card--terminal {
-      background: #dfe8f0;
+      background: #e4edf0;
+      border-color: #263f4a;
     }
 
     .run-card__header-row {
@@ -104,6 +114,8 @@ export type RunCardNodeData = {
       align-items: center;
       justify-content: space-between;
       gap: 12px;
+      border-bottom: 2px solid rgb(17 19 18 / 16%);
+      padding-bottom: 10px;
     }
 
     .run-card__stage,
@@ -116,38 +128,49 @@ export type RunCardNodeData = {
       color: rgb(17 19 18 / 58%);
     }
 
+    .run-card__stage {
+      font-family: 'Russo One', sans-serif;
+      color: rgb(17 19 18 / 72%);
+    }
+
     .run-card__badge {
-      border: 1px dotted rgb(17 19 18 / 45%);
-      padding: 2px 7px;
+      border: 1.5px solid rgb(17 19 18 / 55%);
+      background: #111312;
+      color: #f4f2e8;
+      padding: 3px 8px;
       white-space: nowrap;
     }
 
     .run-card__title {
-      margin: 8px 0 0;
+      margin: 14px 0 0;
       font-family: 'Russo One', sans-serif;
-      font-size: 1rem;
-      line-height: 1.3;
+      font-size: 1.06rem;
+      line-height: 1.28;
     }
 
     .run-card__subtitle,
     .run-card__detail,
     .run-card__meta {
-      margin: 8px 0 0;
-      font-size: 0.84rem;
-      line-height: 1.45;
-      color: rgb(17 19 18 / 72%);
+      margin: 10px 0 0;
+      font-size: 0.86rem;
+      line-height: 1.5;
+      color: rgb(17 19 18 / 78%);
     }
 
     .run-card__detail {
       max-height: 6.6em;
       overflow: auto;
       white-space: pre-line;
-      color: rgb(17 19 18 / 82%);
+      border-left: 2px solid rgb(17 19 18 / 28%);
+      padding-left: 12px;
+      color: #111312;
     }
 
     .run-card__meta {
+      border-top: 1px solid rgb(17 19 18 / 14%);
+      padding-top: 10px;
       font-weight: 700;
-      color: rgb(17 19 18 / 55%);
+      color: rgb(17 19 18 / 62%);
     }
 
     @keyframes cardEnter {
