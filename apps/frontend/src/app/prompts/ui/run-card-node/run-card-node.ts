@@ -20,6 +20,7 @@ export type RunCardNodeData = {
   badge?: string;
   variant: RunCardVariant;
   method?: RunCardMethod;
+  table?: { header: string[]; rows: string[][] };
 };
 
 @Component({
@@ -48,6 +49,26 @@ export type RunCardNodeData = {
       <p class="run-card__subtitle">{{ node().data.subtitle }}</p>
       @if (node().data.detail) {
         <p class="run-card__detail">{{ node().data.detail }}</p>
+      }
+      @if (node().data.table; as table) {
+        <table class="run-card__table">
+          <thead>
+            <tr>
+              @for (cell of table.header; track $index) {
+                <th>{{ cell }}</th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of table.rows; track $index) {
+              <tr>
+                @for (cell of row; track $index) {
+                  <td>{{ cell }}</td>
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
       }
       @if (node().data.meta) {
         <p class="run-card__meta">{{ node().data.meta }}</p>
@@ -84,8 +105,11 @@ export type RunCardNodeData = {
     }
 
     .run-card--candidate {
+      width: 320px;
+      min-height: 104px;
       background: #edf4e7;
       border-color: #1d3b2b;
+      padding: 18px 20px;
     }
 
     .run-card--candidate.run-card--biomimicry,
@@ -111,8 +135,11 @@ export type RunCardNodeData = {
     }
 
     .run-card--best {
+      width: 320px;
+      min-height: 104px;
       background: #f7e2a0;
       border: 2px solid #7d5911;
+      padding: 18px 20px;
       box-shadow:
         0 0 0 4px rgb(239 232 218 / 22%),
         0 18px 44px rgb(0 0 0 / 45%);
@@ -179,6 +206,12 @@ export type RunCardNodeData = {
       line-height: 1.28;
     }
 
+    .run-card--candidate .run-card__title,
+    .run-card--best .run-card__title {
+      font-size: 0.98rem;
+      line-height: 1.32;
+    }
+
     .run-card__subtitle,
     .run-card__detail,
     .run-card__meta {
@@ -194,6 +227,43 @@ export type RunCardNodeData = {
       border-left: 2px solid rgb(17 19 18 / 28%);
       padding-left: 12px;
       color: #111312;
+    }
+
+    .run-card__table {
+      width: 100%;
+      margin-top: 12px;
+      border-collapse: collapse;
+      font-size: 0.78rem;
+      line-height: 1.35;
+    }
+
+    .run-card__table th {
+      border-bottom: 2px solid rgb(17 19 18 / 45%);
+      padding: 4px 6px;
+      text-align: left;
+      font-size: 0.62rem;
+      font-weight: 800;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: rgb(17 19 18 / 60%);
+    }
+
+    .run-card__table td {
+      border-bottom: 1px solid rgb(17 19 18 / 14%);
+      padding: 5px 6px;
+      vertical-align: top;
+      color: #111312;
+    }
+
+    .run-card__table td:first-child {
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .run-card__table td:last-child {
+      font-weight: 800;
+      white-space: nowrap;
+      text-align: right;
     }
 
     .run-card__meta {

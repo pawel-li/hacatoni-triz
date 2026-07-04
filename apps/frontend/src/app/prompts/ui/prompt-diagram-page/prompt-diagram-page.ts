@@ -3,7 +3,6 @@ import {
   Component,
   DestroyRef,
   ElementRef,
-  Injector,
   afterRenderEffect,
   computed,
   effect,
@@ -47,6 +46,7 @@ type DiagramCard = {
   sourceId?: string;
   best?: boolean;
   method?: 'triz' | 'biomimicry';
+  table?: { header: string[]; rows: string[][] };
 };
 
 type LogTone = 'muted' | 'info' | 'warn' | 'success' | 'error';
@@ -67,24 +67,24 @@ type RunLogEntry = {
   template: `
     <main
       class="flex min-h-dvh flex-col bg-[#0f1110] px-5 pb-6 pt-4 text-[#efe8da] sm:px-8"
-      aria-label="Prompt page"
+      aria-label="Strona promptu"
     >
       <header class="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-4">
         <a
           routerLink="/"
           class="border border-dotted border-[#efe8da]/55 px-4 py-2 text-xs font-bold uppercase tracking-[0.08em] text-[#efe8da] transition hover:border-[#efe8da] hover:bg-[#efe8da]/10 focus:outline-none focus:ring-4 focus:ring-[#efe8da]/35"
-          aria-label="Back to home"
+          aria-label="Powrot do strony glownej"
         >
-          ← Back
+          ← Wroc
         </a>
         <h1 class="font-soviet m-0 text-xl font-extrabold tracking-wide sm:text-2xl">
-          Prompt Run
+          Przebieg promptu
         </h1>
       </header>
 
       @if (loading()) {
         <p class="mx-auto mt-4 w-full max-w-6xl text-sm text-[#efe8da]/60" role="status">
-          Loading prompt…
+          Ladowanie promptu...
         </p>
       }
 
@@ -94,45 +94,46 @@ type RunLogEntry = {
         </p>
       }
 
-      @if (promptText(); as text) {
-        <p
-          class="mx-auto mt-4 w-full max-w-6xl border border-dotted border-[#efe8da]/40 px-5 py-4 text-sm leading-relaxed text-[#efe8da]/80"
-        >
-          {{ text }}
-        </p>
-      }
-
       <section
         class="mx-auto mt-4 grid min-h-[68dvh] w-full max-w-6xl flex-1 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_340px]"
-        aria-label="Prompt run workspace"
+        aria-label="Przestrzen przebiegu promptu"
       >
         <div
           #diagramHost
           class="diagram-panel"
           role="region"
-          aria-label="Live prompt diagram"
+          aria-label="Diagram przebiegu"
         >
-          <ng-diagram
-            [model]="model()"
-            [nodeTemplateMap]="nodeTemplateMap"
-            (diagramInit)="onDiagramInit()"
-          />
+          @if (shouldShowDiagram()) {
+            <ng-diagram
+              [model]="model"
+              [nodeTemplateMap]="nodeTemplateMap"
+              (diagramInit)="onDiagramInit()"
+            />
+          } @else {
+            <div class="diagram-loading" role="status" aria-live="polite">
+              <span class="diagram-loading__pulse" aria-hidden="true"></span>
+              <p class="diagram-loading__title">Przygotowywanie diagramu przebiegu</p>
+              <p class="diagram-loading__message">{{ diagramLoadingMessage() }}</p>
+              <p class="diagram-loading__meta">{{ logs().length }} zdarzen</p>
+            </div>
+          }
         </div>
 
-        <aside class="log-panel" aria-label="Prompt run logs">
+        <aside class="log-panel" aria-label="Logi przebiegu promptu">
           <div class="log-panel__header">
             <div class="log-panel__title-row">
-              <p class="log-panel__label">Run log</p>
-              <span class="log-panel__count">{{ logs().length }} events</span>
+              <p class="log-panel__label">Dziennik przebiegu</p>
+              <span class="log-panel__count">{{ logs().length }} zdarzen</span>
             </div>
             <p class="log-status" [class]="'log-status log-status--' + statusTone()">
               <span class="log-status__dot" aria-hidden="true"></span>
               {{ runStatus() }}
             </p>
             @if (displayedCost(); as cost) {
-              <dl class="log-cost" aria-label="Run cost">
+              <dl class="log-cost" aria-label="Koszt przebiegu">
                 <div>
-                  <dt>Cost</dt>
+                  <dt>Koszt</dt>
                   <dd>{{ formatCost(cost.totalCostUsd) }}</dd>
                 </div>
                 <div>
@@ -140,14 +141,14 @@ type RunLogEntry = {
                   <dd>{{ cost.model }}</dd>
                 </div>
                 <div>
-                  <dt>Tokens</dt>
+                  <dt>Tokeny</dt>
                   <dd>{{ cost.totalTokens }}</dd>
                 </div>
               </dl>
             }
             @if (agentProblem(); as problem) {
               <details class="log-agent">
-                <summary>Agent input</summary>
+                <summary>Wejscie agenta</summary>
                 <p>{{ problem }}</p>
               </details>
             }
@@ -164,7 +165,7 @@ type RunLogEntry = {
                 @for (log of logs(); track log.id) {
                   <li [class]="'log-entry log-entry--' + log.tone">
                     <p class="log-entry__meta">
-                      <span class="log-entry__type">{{ log.type }}</span>
+                      <span class="log-entry__type">{{ formatLogType(log.type) }}</span>
                       @if (log.time) {
                         <time class="log-entry__time">{{ log.time }}</time>
                       }
@@ -176,7 +177,7 @@ type RunLogEntry = {
             } @else {
               <div class="log-empty" role="status">
                 <span class="log-empty__dots" aria-hidden="true"><i></i><i></i><i></i></span>
-                <p>Waiting for ai-agent events…</p>
+                <p>Oczekiwanie na zdarzenia ai-agent...</p>
               </div>
             }
 
@@ -207,11 +208,86 @@ type RunLogEntry = {
       background-size: 28px 28px;
     }
 
+    .diagram-loading {
+      position: relative;
+      width: 100%;
+      display: grid;
+      align-content: center;
+      justify-items: center;
+      gap: 8px;
+      padding: 24px;
+      text-align: center;
+      background:
+        radial-gradient(circle at 50% 35%, rgb(143 191 127 / 16%), transparent 58%),
+        linear-gradient(140deg, rgb(15 17 16 / 40%), rgb(15 17 16 / 12%));
+    }
+
+    .diagram-loading::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        110deg,
+        transparent 28%,
+        rgb(239 232 218 / 8%) 44%,
+        transparent 58%
+      );
+      animation: loadingSweep 2.2s linear infinite;
+      pointer-events: none;
+    }
+
+    .diagram-loading__pulse {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      border: 2px dotted rgb(239 232 218 / 65%);
+      position: relative;
+      display: inline-block;
+      animation: loadingSpin 1.2s linear infinite;
+    }
+
+    .diagram-loading__pulse::after {
+      content: '';
+      position: absolute;
+      inset: 14px;
+      border-radius: 50%;
+      background: rgb(239 232 218 / 55%);
+      animation: statusPulse 1s ease-in-out infinite;
+    }
+
+    .diagram-loading__title {
+      margin: 2px 0 0;
+      font-size: 0.84rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #efe8da;
+    }
+
+    .diagram-loading__message {
+      margin: 0;
+      max-width: 24rem;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      color: rgb(239 232 218 / 78%);
+    }
+
+    .diagram-loading__meta {
+      margin: 0;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: rgb(239 232 218 / 50%);
+    }
+
     .diagram-panel ng-diagram {
       flex: 1;
       min-width: 0;
       --ngd-diagram-background-color: transparent;
       --ngd-background-dot-color: rgb(239 232 218 / 30%);
+      --ngd-default-edge-stroke: rgb(239 232 218 / 60%);
+      --ngd-default-edge-stroke-hover: rgb(239 232 218 / 90%);
     }
 
     .log-panel {
@@ -490,6 +566,24 @@ type RunLogEntry = {
         transform: translateY(0);
       }
     }
+
+    @keyframes loadingSpin {
+      from {
+        transform: rotate(0deg);
+      }
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    @keyframes loadingSweep {
+      from {
+        transform: translateX(-130%);
+      }
+      to {
+        transform: translateX(130%);
+      }
+    }
   `,
 })
 export class PromptDiagramPageComponent {
@@ -509,7 +603,7 @@ export class PromptDiagramPageComponent {
         if (!id) {
           return of<PromptPageState>({
             loading: false,
-            error: 'Missing prompt id in URL.',
+            error: 'Brakuje identyfikatora promptu w adresie URL.',
             prompt: null,
           });
         }
@@ -520,7 +614,7 @@ export class PromptDiagramPageComponent {
           catchError(() =>
             of<PromptPageState>({
               loading: false,
-              error: 'Could not load the prompt. Please try again.',
+              error: 'Nie udalo sie wczytac promptu. Sprobuj ponownie.',
               prompt: null,
             }),
           ),
@@ -541,19 +635,45 @@ export class PromptDiagramPageComponent {
   readonly prompt = computed(() => this.state().prompt);
   readonly promptText = computed(() => this.state().prompt?.text ?? null);
   readonly promptId = computed(() => this.state().prompt?.id ?? null);
+  readonly streamFinished = computed(() => {
+    if (this.streamError()) return true;
+    const latestEvent = this.runEvents().at(-1);
+    return latestEvent?.type === 'run_completed' || latestEvent?.type === 'error';
+  });
+  readonly shouldShowDiagram = computed(
+    () => this.streamFinished() && this.graph().nodes.length > 0,
+  );
+  readonly diagramLoadingMessage = computed(() => {
+    if (this.loading()) return 'Ladowanie szczegolow promptu...';
+    if (this.error()) return 'Nie mozna wczytac promptu.';
+    if (this.streamError()) {
+      return this.graph().nodes.length
+        ? 'Strumien zostal rozlaczony. W logu widoczne sa czesciowe wyniki.'
+        : 'Strumien zostal rozlaczony zanim udalo sie wygenerowac diagram.';
+    }
+    if (this.streamFinished() && this.graph().nodes.length === 0) {
+      return 'Przebieg zakonczyl sie, ale nie wygenerowano wezlow diagramu.';
+    }
+    if (!this.runEvents().length) {
+      return 'Oczekiwanie na rozpoczecie przebiegu przez ai-agent...';
+    }
+    return 'Odczytywanie zdarzen na zywo i budowanie finalnego diagramu...';
+  });
   readonly runStatus = computed(() => {
     const latestEvent = this.runEvents().at(-1);
-    if (this.streamError()) return 'Stream disconnected';
-    if (!latestEvent) return 'Waiting for run';
-    if (latestEvent.type === 'run_completed') return 'Completed';
-    if (latestEvent.type === 'error') return 'Failed';
-    return 'Running';
+    if (this.streamError()) return 'Strumien rozlaczony';
+    if (!latestEvent) return 'Oczekiwanie na przebieg';
+    if (latestEvent.type === 'run_completed') return 'Zakonczono';
+    if (latestEvent.type === 'error') return 'Blad';
+    return 'W trakcie';
   });
   readonly statusTone = computed<'waiting' | 'running' | 'done' | 'failed'>(() => {
-    const status = this.runStatus();
-    if (status === 'Completed') return 'done';
-    if (status === 'Failed' || status === 'Stream disconnected') return 'failed';
-    if (status === 'Running') return 'running';
+    const latestEvent = this.runEvents().at(-1);
+    if (this.streamError()) return 'failed';
+    if (!latestEvent) return 'waiting';
+    if (latestEvent.type === 'run_completed') return 'done';
+    if (latestEvent.type === 'error') return 'failed';
+    if (latestEvent.type) return 'running';
     return 'waiting';
   });
   readonly logs = computed<RunLogEntry[]>(() =>
@@ -565,7 +685,7 @@ export class PromptDiagramPageComponent {
               time: '',
               type: 'prompt',
               tone: 'muted' as LogTone,
-              message: `Loaded saved prompt: ${this.promptText()}`,
+              message: `Wczytano zapisany prompt: ${this.promptText()}`,
             },
           ]
         : []),
@@ -577,10 +697,15 @@ export class PromptDiagramPageComponent {
       this.runEvents().find((event) => event.type === 'run_started')?.payload
         .problem ?? null,
   );
+  readonly functionQueryEvent = computed(() =>
+    this.runEvents().find((event) => event.type === 'function_query'),
+  );
   readonly functionQuery = computed(
     () =>
+      this.functionQueryEvent()?.payload.functionQuery ??
       this.runEvents().find((event) => event.type === 'run_started')?.payload
-        .functionQuery ?? null,
+        .functionQuery ??
+      null,
   );
   readonly databaseEvent = computed(() =>
     this.runEvents().find((event) => event.type === 'database_loaded'),
@@ -593,11 +718,6 @@ export class PromptDiagramPageComponent {
   );
   readonly topRanking = computed(
     () => this.rankingEvent()?.payload.ranking?.slice(0, 3) ?? [],
-  );
-  readonly mechanismEvents = computed(() =>
-    this.runEvents().filter(
-      (event) => event.type === 'mechanism_selected' && event.payload.mechanism,
-    ),
   );
   readonly candidateEvents = computed(() =>
     this.runEvents().filter(
@@ -643,7 +763,7 @@ export class PromptDiagramPageComponent {
       totalCostUsd: savedRun.costUsd,
       currency: savedRun.currency,
       calls: 0,
-      pricing: 'saved run total',
+      pricing: 'suma zapisanego przebiegu',
     };
   });
 
@@ -651,78 +771,42 @@ export class PromptDiagramPageComponent {
     const cards: DiagramCard[] = [
       {
         id: 'user-problem',
-        stage: '01 user problem',
-        title: 'User problem',
+        stage: '01 problem uzytkownika',
+        title: 'Problem uzytkownika',
         subtitle: this.agentProblem()
-          ? 'Sent to ai-agent'
-          : 'Waiting to start biomimicry analysis',
-        detail: this.promptText() ?? 'Loading saved prompt...',
+          ? 'Przekazano do ai-agent'
+          : 'Oczekiwanie na start analizy biomimikry',
+        detail: this.compactText(this.promptText() ?? 'Ladowanie zapisanego promptu...', 140),
       },
     ];
 
-    if (this.functionQuery()) {
+    if (this.functionQuery() || this.rankingEvent()) {
+      const databaseEvent = this.databaseEvent();
+      const vectorizedEvent = this.vectorizedEvent();
       cards.push({
-        id: 'function-query',
-        stage: '02 function query',
-        title: 'Function query',
-        subtitle: 'Notebook default used for similarity ranking',
-        detail: this.functionQuery() ?? '',
-      });
-    }
-
-    const databaseEvent = this.databaseEvent();
-    if (databaseEvent) {
-      cards.push({
-        id: 'biomimicry-db',
-        stage: '03 biomimicry db',
-        title: 'Biomimicry DB',
-        subtitle: `${databaseEvent.payload.databaseCount ?? 0} mechanisms loaded`,
-        detail: 'Biological mechanisms are ready for functional matching.',
-      });
-    }
-
-    const vectorizedEvent = this.vectorizedEvent();
-    if (vectorizedEvent) {
-      cards.push({
-        id: 'tfidf',
-        stage: '04 tf-idf similarity',
-        title: 'TF-IDF similarity',
-        subtitle: 'Vectorized functions + query',
-        detail: 'Calculated cosine similarity scores for every mechanism.',
-        meta: `${vectorizedEvent.payload.corpusSize ?? 0} corpus items · ${
-          vectorizedEvent.payload.featureCount ?? 0
-        } features`,
-      });
-    }
-
-    if (this.rankingEvent()) {
-      cards.push({
-        id: 'ranking',
-        stage: '05 ranking',
-        title: 'Ranking',
-        subtitle: 'Top biomimicry matches',
-        detail: this.topRanking()
-          .map(
-            (row) =>
-              `[${row.id}] ${row.organism} - ${row.mechanism} (${row.similarity.toFixed(3)})`,
-          )
-          .join('\n'),
+        id: 'bio-matching',
+        stage: '02 dopasowanie biomimikry',
+        title: 'Dopasowanie biomimikry',
+        subtitle: this.functionQuery() ?? 'Dopasowywanie mechanizmow biologicznych',
+        detail: this.rankingEvent()
+          ? `${this.topRanking().length} wybranych najmocniejszych dopasowan biologicznych`
+          : 'Rankingowanie mechanizmow biologicznych przez TF-IDF...',
+        meta:
+          [
+            databaseEvent
+              ? `${databaseEvent.payload.databaseCount ?? 0} mechanizmow`
+              : null,
+            vectorizedEvent
+              ? `${vectorizedEvent.payload.featureCount ?? 0} cech TF-IDF`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(' · ') || undefined,
       });
     }
 
     return cards;
   });
-
-  readonly mechanismCards = computed<DiagramCard[]>(() =>
-    this.mechanismEvents().map((event, index) => ({
-      id: `mechanism-${event.payload.mechanism?.id ?? index}`,
-      stage: `06 selected ${index + 1}`,
-      title: `[${event.payload.mechanism?.id}] ${event.payload.mechanism?.organism}`,
-      subtitle: event.payload.mechanism?.mechanism ?? event.message,
-      detail: event.payload.mechanism?.principle ?? '',
-      method: 'biomimicry' as const,
-    })),
-  );
 
   readonly contradictionCard = computed<DiagramCard | null>(() => {
     const event = this.contradictionEvent();
@@ -730,11 +814,14 @@ export class PromptDiagramPageComponent {
     const contradiction = event.payload.contradiction;
     return {
       id: 'triz-contradiction',
-      stage: '06 triz contradiction',
-      title: 'Technical contradiction',
-      subtitle: contradiction?.triz_contradiction_statement ?? event.message,
-      detail: (contradiction?.triz_inventive_principles ?? []).join('\n'),
-      meta: `${contradiction?.feature_to_improve ?? ''} vs ${contradiction?.feature_that_worsens ?? ''}`,
+      stage: '03 sprzecznosc TRIZ',
+      title: 'Sprzecznosc techniczna',
+      subtitle: this.compactText(
+        contradiction?.triz_contradiction_statement ?? event.message,
+        130,
+      ),
+      detail: (contradiction?.triz_inventive_principles ?? []).join(' · '),
+      meta: `${contradiction?.feature_to_improve ?? ''} kontra ${contradiction?.feature_that_worsens ?? ''}`,
       method: 'triz',
     };
   });
@@ -755,16 +842,16 @@ export class PromptDiagramPageComponent {
         method,
         stage:
           method === 'triz'
-            ? `07 triz candidate`
-            : `07 candidate ${index + 1}`,
-        title: candidate?.tytul ?? 'Generated candidate',
+            ? `04 kandydat TRIZ`
+            : `04 kandydat ${index + 1}`,
+        title: candidate?.tytul ?? 'Wygenerowany kandydat',
         subtitle: candidate?.zrodlo_mechanizmu ?? event.message,
-        detail: candidate?.opis ?? '',
+        detail: candidate?.opis || undefined,
         meta: score?.rationale || undefined,
         badge: score
           ? `${best ? '★ ' : ''}${score.score}/100`
           : candidate?.fallback
-            ? 'local fallback'
+            ? 'lokalne zastepstwo'
             : undefined,
         best,
       };
@@ -777,9 +864,9 @@ export class PromptDiagramPageComponent {
       return {
         id: 'run-failed',
         stage: 'error',
-        title: 'Run failed',
+        title: 'Przebieg zakonczony bledem',
         subtitle: errorEvent.message,
-        detail: errorEvent.payload.detail ?? 'The stream stopped before completion.',
+        detail: errorEvent.payload.detail ?? 'Strumien zatrzymal sie przed zakonczeniem.',
       };
     }
 
@@ -793,38 +880,63 @@ export class PromptDiagramPageComponent {
 
     return {
       id: 'solution-score',
-      stage: '08 solution score',
-      title: `Solution score: ${evaluation.overallScore}/100`,
-      subtitle: evaluation.verdict,
-      detail: evaluation.candidateScores
-        .map((score) => `[${score.id}] ${score.tytul} — ${score.score}/100`)
-        .join('\n'),
-      meta: [
-        best ? `Best: ${best.tytul} (${best.score}/100)` : null,
-        cost ? `Cost: ${this.formatCost(cost.totalCostUsd)} · ${cost.model}` : null,
-      ]
+      stage: '05 ocena rozwiazania',
+      title: `Ocena rozwiazania: ${evaluation.overallScore}/100`,
+      subtitle: this.compactText(evaluation.verdict, 150),
+      table: {
+        header: ['ID', 'Rozwiazanie', 'Ocena'],
+        rows: evaluation.candidateScores.map((score) => [
+          score.id,
+          `${score.id === evaluation.bestCandidateId ? '★ ' : ''}${score.tytul}`,
+          `${score.score}/100`,
+        ]),
+      },
+      meta: [best ? `Najlepsze: ${best.tytul}` : null, cost ? this.formatCost(cost.totalCostUsd) : null]
         .filter(Boolean)
-        .join('\n') || undefined,
+        .join(' · ') || undefined,
       badge: cost ? this.formatCost(cost.totalCostUsd) : `${evaluation.overallScore}/100`,
     };
   });
-
-  private readonly injector = inject(Injector);
 
   readonly nodeTemplateMap = new NgDiagramNodeTemplateMap([
     ['run-card', RunCardNodeComponent],
   ]);
 
-  readonly model = computed(() =>
-    initializeModel(this.graph(), this.injector),
-  );
+  readonly model = initializeModel({ nodes: [], edges: [] });
+
+  private readonly WIDE_CARD_WIDTH = 360;
+  private readonly COMPACT_CARD_WIDTH = 320;
+  private readonly BRANCH_COLUMN_GAP = this.WIDE_CARD_WIDTH + 180;
+  private readonly CANDIDATE_COLUMN_GAP = this.COMPACT_CARD_WIDTH + 140;
+  private readonly VERTICAL_GAP = 150;
+
+  private estimateCardHeight(card: DiagramCard, variant: RunCardVariant): number {
+    const width = variant === 'candidate' || variant === 'best'
+      ? this.COMPACT_CARD_WIDTH
+      : this.WIDE_CARD_WIDTH;
+    const charsPerLine = Math.max(24, Math.floor((width - 44) / 7));
+    const textLines = (text: string | undefined, cpl: number) => {
+      if (!text) return 0;
+      const normalized = text.replace(/\s+/g, ' ').trim();
+      return normalized ? Math.ceil(normalized.length / cpl) : 0;
+    };
+
+    let height = 38; // vertical padding
+    height += 30; // stage/badge header row
+    height += 14 + textLines(card.title, Math.floor(charsPerLine * 0.72)) * 24;
+    height += card.subtitle ? 10 + textLines(card.subtitle, charsPerLine) * 21 : 0;
+    height += card.detail ? 10 + textLines(card.detail, charsPerLine - 3) * 21 : 0;
+    height += card.meta ? 20 + textLines(card.meta, charsPerLine) * 21 : 0;
+    if (card.table) {
+      height += 12 + 26 + card.table.rows.length * 28;
+    }
+    return Math.max(140, height);
+  }
 
   private readonly graph = computed(() => {
-    const COLUMN_GAP = 400;
-    const ROW_GAP = 250;
-
     const nodes: Node<RunCardNodeData>[] = [];
     const edges: Edge[] = [];
+    const heights = new Map<string, number>();
 
     const addEdge = (source: string, target: string) =>
       edges.push({
@@ -837,43 +949,56 @@ export class PromptDiagramPageComponent {
         data: {},
       });
 
+    let y = 0;
+
     const spine = this.spineCards();
     spine.forEach((card, index) => {
-      nodes.push(this.toNode(card, 'spine', 0, index * ROW_GAP));
+      const height = this.estimateCardHeight(card, 'spine');
+      heights.set(card.id, height);
+      nodes.push(this.toNode(card, 'spine', 0, y));
       if (index > 0) addEdge(spine[index - 1].id, card.id);
+      y += height + this.VERTICAL_GAP;
     });
 
-    let y = spine.length * ROW_GAP + 40;
     const lastSpineId = spine.at(-1)?.id ?? null;
 
     const contradiction = this.contradictionCard();
-    const branches = [
-      ...this.mechanismCards(),
-      ...(contradiction ? [contradiction] : []),
-    ];
-    branches.forEach((card, index) => {
-      const x = (index - (branches.length - 1) / 2) * COLUMN_GAP;
-      nodes.push(this.toNode(card, 'mechanism', x, y));
-      if (lastSpineId) addEdge(lastSpineId, card.id);
-    });
-    if (branches.length) y += ROW_GAP + 40;
+    const branches = contradiction ? [contradiction] : [];
+    if (branches.length) {
+      let rowHeight = 0;
+      branches.forEach((card, index) => {
+        const height = this.estimateCardHeight(card, 'mechanism');
+        heights.set(card.id, height);
+        rowHeight = Math.max(rowHeight, height);
+        const x = (index - (branches.length - 1) / 2) * this.BRANCH_COLUMN_GAP;
+        nodes.push(this.toNode(card, 'mechanism', x, y));
+        if (lastSpineId) addEdge(lastSpineId, card.id);
+      });
+      y += rowHeight + this.VERTICAL_GAP;
+    }
 
     const candidates = this.candidateCards();
-    candidates.forEach((card, index) => {
-      const x = (index - (candidates.length - 1) / 2) * COLUMN_GAP;
-      nodes.push(this.toNode(card, card.best ? 'best' : 'candidate', x, y));
-      const parent =
-        branches.find((branch) => branch.id === `mechanism-${card.sourceId}`)
-          ?.id ??
-        (card.sourceId?.startsWith('T') && contradiction
-          ? contradiction.id
-          : lastSpineId);
-      if (parent) addEdge(parent, card.id);
-    });
-    if (candidates.length) y += ROW_GAP + 40;
+    if (candidates.length) {
+      let rowHeight = 0;
+      candidates.forEach((card, index) => {
+        const variant: RunCardVariant = card.best ? 'best' : 'candidate';
+        const height = this.estimateCardHeight(card, variant);
+        heights.set(card.id, height);
+        rowHeight = Math.max(rowHeight, height);
+        const x = (index - (candidates.length - 1) / 2) * this.CANDIDATE_COLUMN_GAP;
+        nodes.push(this.toNode(card, variant, x, y));
+        const parent =
+          card.sourceId?.startsWith('T') && contradiction
+            ? contradiction.id
+            : lastSpineId;
+        if (parent) addEdge(parent, card.id);
+      });
+      y += rowHeight + this.VERTICAL_GAP;
+    }
 
     const finalCard = this.finalCard();
     if (finalCard) {
+      heights.set(finalCard.id, this.estimateCardHeight(finalCard, 'terminal'));
       nodes.push(this.toNode(finalCard, 'terminal', 0, y));
       const parents = candidates.length
         ? candidates
@@ -885,7 +1010,7 @@ export class PromptDiagramPageComponent {
       parents.forEach((parent) => addEdge(parent.id, finalCard.id));
     }
 
-    return { nodes, edges };
+    return { nodes, edges, heights };
   });
 
   private toNode(
@@ -908,8 +1033,16 @@ export class PromptDiagramPageComponent {
         badge: card.badge,
         variant,
         method: card.method,
+        table: card.table,
       },
     };
+  }
+
+  private compactText(text: string, maxLength: number): string {
+    const normalized = text.replace(/\s+/g, ' ').trim();
+    return normalized.length > maxLength
+      ? `${normalized.slice(0, maxLength - 1)}…`
+      : normalized;
   }
 
   private readonly logScroll =
@@ -918,8 +1051,6 @@ export class PromptDiagramPageComponent {
   private diagramReady = false;
   private viewportFitScheduled = false;
   private pendingFit = false;
-  private readonly CARD_WIDTH = 340;
-  private readonly CARD_HEIGHT = 170;
   private readonly FOLLOW_SCALE = 0.8;
   private readonly diagramHost =
     viewChild<ElementRef<HTMLElement>>('diagramHost');
@@ -946,7 +1077,7 @@ export class PromptDiagramPageComponent {
   }
 
   private centerOnLatestNode(): void {
-    const nodes = this.graph().nodes;
+    const { nodes, heights } = this.graph();
     const latest = nodes.at(-1);
     const host = this.diagramHost()?.nativeElement;
     if (!latest || !host) return;
@@ -956,8 +1087,9 @@ export class PromptDiagramPageComponent {
     if (!width || !height) return;
 
     const scale = this.FOLLOW_SCALE;
-    const centerX = latest.position.x + this.CARD_WIDTH / 2;
-    const centerY = latest.position.y + this.CARD_HEIGHT / 2;
+    const cardHeight = heights.get(latest.id) ?? 190;
+    const centerX = latest.position.x + this.nodeWidth(latest.data.variant) / 2;
+    const centerY = latest.position.y + cardHeight / 2;
     const x = width / 2 - centerX * scale;
     const y = height / 2 - centerY * scale;
 
@@ -968,6 +1100,12 @@ export class PromptDiagramPageComponent {
     }
   }
 
+  private nodeWidth(variant: RunCardVariant): number {
+    return variant === 'candidate' || variant === 'best'
+      ? this.COMPACT_CARD_WIDTH
+      : this.WIDE_CARD_WIDTH;
+  }
+
   onLogScroll(event: Event): void {
     const el = event.target as HTMLElement;
     this.stickToBottom =
@@ -976,7 +1114,15 @@ export class PromptDiagramPageComponent {
 
   constructor() {
     effect(() => {
-      const { nodes } = this.graph();
+      const { nodes, edges } = this.graph();
+      this.model.updateNodes((current) => {
+        const byId = new Map(current.map((node) => [node.id, node]));
+        return nodes.map((node) => {
+          const existing = byId.get(node.id);
+          return existing ? { ...existing, data: node.data } : node;
+        });
+      });
+      this.model.updateEdges(() => edges);
       if (nodes.length) this.scheduleViewportFit();
     });
 
@@ -1026,7 +1172,7 @@ export class PromptDiagramPageComponent {
       .subscribe({
         next: (event) => this.runEvents.update((events) => [...events, event]),
         error: () =>
-          this.streamError.set('Prompt run stream disconnected unexpectedly.'),
+          this.streamError.set('Strumien przebiegu promptu zostal nieoczekiwanie rozlaczony.'),
       });
   }
 
@@ -1041,15 +1187,19 @@ export class PromptDiagramPageComponent {
           time,
           type: event.type,
           tone,
-          message: `Problem received by ai-agent: ${event.payload.problem ?? ''}`,
+          message: `Problem odebrany przez ai-agent: ${event.payload.problem ?? ''}`,
         },
-        {
-          id: `${event.id}-query`,
-          time,
-          type: event.type,
-          tone,
-          message: `Function query: ${event.payload.functionQuery ?? ''}`,
-        },
+        ...(event.payload.functionQuery
+          ? [
+              {
+                id: `${event.id}-query`,
+                time,
+                type: event.type,
+                tone,
+                message: `Zapytanie funkcji: ${event.payload.functionQuery}`,
+              },
+            ]
+          : []),
       ];
     }
 
@@ -1061,7 +1211,7 @@ export class PromptDiagramPageComponent {
           type: event.type,
           tone,
           message:
-            'Top ranking: ' +
+            'Najwyzszy ranking: ' +
             (event.payload.ranking ?? [])
               .slice(0, 3)
               .map(
@@ -1094,7 +1244,7 @@ export class PromptDiagramPageComponent {
           type: event.type,
           tone,
           message:
-            `Solution score ${evaluation?.overallScore ?? 0}/100 — ${evaluation?.verdict ?? ''} ` +
+            `Ocena rozwiazania ${evaluation?.overallScore ?? 0}/100 - ${evaluation?.verdict ?? ''} ` +
             (evaluation?.candidateScores ?? [])
               .map((score) => `[${score.id}] ${score.score}/100`)
               .join('; '),
@@ -1111,7 +1261,7 @@ export class PromptDiagramPageComponent {
           type: event.type,
           tone,
           message: cost
-            ? `Estimated cost ${this.formatCost(cost.totalCostUsd)} for ${cost.totalTokens} tokens on ${cost.model}.`
+            ? `Szacowany koszt ${this.formatCost(cost.totalCostUsd)} dla ${cost.totalTokens} tokenow w modelu ${cost.model}.`
             : event.message,
         },
       ];
@@ -1128,6 +1278,39 @@ export class PromptDiagramPageComponent {
     ];
   }
 
+  protected formatLogType(type: string): string {
+    switch (type) {
+      case 'prompt':
+        return 'prompt';
+      case 'run_started':
+        return 'start przebiegu';
+      case 'function_query':
+        return 'zapytanie funkcji';
+      case 'database_loaded':
+        return 'baza danych';
+      case 'vectorized':
+        return 'wektoryzacja';
+      case 'ranking':
+        return 'ranking';
+      case 'mechanism_selected':
+        return 'wybor mechanizmu';
+      case 'contradiction_found':
+        return 'sprzecznosc';
+      case 'candidate':
+        return 'kandydat';
+      case 'scored':
+        return 'ocena';
+      case 'run_cost':
+        return 'koszt przebiegu';
+      case 'run_completed':
+        return 'zakonczono';
+      case 'error':
+        return 'blad';
+      default:
+        return type;
+    }
+  }
+
   private eventTone(type: string): LogTone {
     switch (type) {
       case 'error':
@@ -1142,6 +1325,7 @@ export class PromptDiagramPageComponent {
       case 'contradiction_found':
         return 'warn';
       case 'run_started':
+      case 'function_query':
       case 'database_loaded':
       case 'vectorized':
         return 'info';

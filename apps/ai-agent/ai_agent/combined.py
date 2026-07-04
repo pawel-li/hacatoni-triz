@@ -15,7 +15,7 @@ from collections.abc import Iterator
 from typing import Any
 from uuid import uuid4
 
-from ai_agent.biomimicry import DEFAULT_FUNCTION_QUERY, stream_biomimicry_run
+from ai_agent.biomimicry import stream_biomimicry_run
 from ai_agent.gemini import GeminiCostMeter
 from ai_agent.triz import _call_llm, stream_triz_candidates
 
@@ -35,7 +35,7 @@ def stream_both_run(
 ) -> Iterator[dict[str, Any]]:
     """Yield JSON-serializable events for a combined biomimicry + TRIZ run."""
     normalized_problem = problem.strip()
-    normalized_query = (function_query or DEFAULT_FUNCTION_QUERY).strip()
+    provided_query = (function_query or "").strip() or None
     meter = GeminiCostMeter()
 
     yield _event(
@@ -43,7 +43,7 @@ def stream_both_run(
         "Combined biomimicry + TRIZ run started.",
         {
             "problem": normalized_problem,
-            "functionQuery": normalized_query,
+            **({"functionQuery": provided_query} if provided_query else {}),
             "model": meter.model,
             "provider": meter.provider,
         },
@@ -51,12 +51,13 @@ def stream_both_run(
 
     bio_candidates: list[dict[str, Any]] = []
     triz_candidates: list[dict[str, Any]] = []
+    derived_query = provided_query or ""
 
-    yield from _merge_streams(
+    for event in _merge_streams(
         _collect_candidates(
             stream_biomimicry_run(
                 normalized_problem,
-                normalized_query,
+                provided_query,
                 meter=meter,
                 emit_cost=False,
             ),
@@ -68,7 +69,12 @@ def stream_both_run(
             "triz",
             triz_candidates,
         ),
-    )
+    ):
+        if event.get("type") == "function_query":
+            derived_query = str(
+                event.get("payload", {}).get("functionQuery") or derived_query
+            )
+        yield event
 
     candidates = bio_candidates + triz_candidates
     yield _event(
@@ -98,7 +104,7 @@ def stream_both_run(
             "reasoningTrail": {
                 "method": "both",
                 "problem": normalized_problem,
-                "function_query": normalized_query,
+                "function_query": derived_query,
                 "similarity_ranking": [],
                 "selected_mechanisms": [],
                 "candidates": candidates,
@@ -185,12 +191,20 @@ Problem: {problem}
 
 Candidate solutions: {json.dumps(summary, ensure_ascii=False)}
 
-Evaluate EVERY candidate against the problem. For each candidate score three criteria from 0 to 100:
-innovation (novelty of the approach), feasibility (practicality to prototype and deploy), impact (how well it solves the problem).
-Also give a one-sentence rationale per candidate, and an overall verdict naming the strongest solution and why it wins.
+Evaluate EVERY candidate strictly against the problem's requirements (including its numeric constraints). For each candidate score three criteria from 0 to 100:
+innovation (novelty of the approach), feasibility (practicality to prototype and deploy with today's materials and manufacturing), impact (how completely it solves the stated problem).
+
+Scoring rules:
+- Use the full 0-100 range and clearly differentiate the candidates; do not cluster all scores in a narrow band.
+- Penalize vague concepts, unproven mechanisms, and solutions that ignore the problem's constraints.
+- Reward concrete geometry/material choices with a clear causal link to the requirements.
+
+Also give a one-sentence rationale per candidate, pick the single best candidate overall as best_id, and write a verdict (2-3 sentences) explaining why that candidate beats the runner-up.
+The verdict MUST refer to the same candidate as best_id.
 
 Respond ONLY with pure JSON (no markdown, no ```), with fields:
 evaluations (list of objects with fields: id, innovation, feasibility, impact, rationale) - use the exact candidate ids provided;
+best_id (string, one of the candidate ids);
 verdict (string).""",
     meter,
     ))
@@ -218,7 +232,11 @@ verdict (string).""",
     if not scores:
         raise ValueError("LLM returned no usable evaluations")
 
-    best = max(scores, key=lambda s: s["score"])
+    llm_best_id = str(result.get("best_id", ""))
+    best = next(
+        (s for s in scores if s["id"] == llm_best_id),
+        max(scores, key=lambda s: s["score"]),
+    )
     return {
         "overallScore": best["score"],
         "bestCandidateId": best["id"],

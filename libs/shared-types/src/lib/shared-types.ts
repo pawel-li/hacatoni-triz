@@ -99,6 +99,7 @@ export interface PromptRunReasoningTrail {
 
 export type PromptRunEventType =
   | 'run_started'
+  | 'function_query'
   | 'database_loaded'
   | 'vectorized'
   | 'log'
@@ -117,6 +118,7 @@ export type PromptRunEventType =
 export interface PromptRunEventPayload {
   problem?: string;
   functionQuery?: string;
+  functionQuerySource?: 'llm' | 'provided' | 'default';
   databaseCount?: number;
   corpusSize?: number;
   featureCount?: number;

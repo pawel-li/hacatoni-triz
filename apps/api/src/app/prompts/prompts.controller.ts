@@ -109,6 +109,12 @@ export class PromptsController {
   @Get(':id')
   async findOne(@Param('id') id: string) {
     const prompt = await this.promptsService.findOne(id);
-    return { id: prompt.id, text: prompt.text, method: prompt.method, createdAt: prompt.createdAt };
+    return {
+      id: prompt.id,
+      text: prompt.text,
+      method: prompt.method,
+      createdAt: prompt.createdAt,
+      runs: prompt.runs,
+    };
   }
 }

@@ -165,14 +165,15 @@ def _reformulate_contradiction(
     try:
         return json.loads(_call_llm(
             f"""You are a TRIZ expert.
-Analyze the following problem and identify the Technical Contradiction.
+Analyze the following problem and identify the single most important Technical Contradiction.
 A technical contradiction occurs when improving one parameter of a system causes another parameter to worsen.
 
 Problem: {problem}
 
-Identify the 39 TRIZ parameters involved.
-What is the feature to improve? What is the feature that worsens?
-Based on the Contradiction Matrix, what are the recommended Inventive Principles?
+Instructions:
+- Name the two conflicting parameters using their exact names (with numbers) from the 39 TRIZ engineering parameters.
+- State the contradiction in one clear sentence grounded in the problem's specifics (reuse its numbers and constraints).
+- From the classical Contradiction Matrix cell for those two parameters, recommend 3-5 Inventive Principles, each formatted "N. Name" (e.g. "1. Segmentation").
 
 Respond ONLY with pure JSON (no markdown, no ```), with fields:
 feature_to_improve, feature_that_worsens, triz_contradiction_statement, triz_inventive_principles (list of strings).""",
@@ -187,12 +188,18 @@ def _generate_triz_solutions(
 ) -> list[dict[str, str]]:
     try:
         result = json.loads(_call_llm(
-            f"""You are an R&D engineer. Use the following TRIZ contradiction and principles to generate exactly 3 distinct packaging solutions for the problem.
+            f"""You are a senior R&D engineer. Use the TRIZ contradiction analysis below to generate exactly 3 distinct, concrete solutions to the problem.
 
 Problem: {problem}
-Contradiction Analysis: {json.dumps(contradiction)}
+Contradiction Analysis: {json.dumps(contradiction, ensure_ascii=False)}
 
-Ensure the solutions are practical, innovative, and directly address the problem.
+Requirements:
+- Each solution must apply a DIFFERENT inventive principle from the analysis; name it in principle_used exactly as given.
+- Each description must be 2-4 sentences naming the specific structure/geometry, material or mechanism, and explaining how it improves the target parameter WITHOUT worsening the conflicting one.
+- Address the concrete constraints and numbers from the problem statement.
+- No vague marketing language; every solution must be feasible to prototype with today's materials and manufacturing.
+- Write name and description in the same language as the problem statement.
+
 Respond ONLY with pure JSON (no markdown, no ```), with a single field:
 candidates (list of objects with fields: name, description, principle_used).""",
             meter,
@@ -208,12 +215,13 @@ def _evaluate_candidates(
     try:
         result = json.loads(_call_llm(
             f"""You are a product manager evaluating R&D proposals.
-Evaluate the following candidate solutions against the original problem.
+Evaluate the following candidate solutions strictly against the original problem and its constraints.
 
 Problem: {problem}
-Candidates: {json.dumps(candidates)}
+Candidates: {json.dumps(candidates, ensure_ascii=False)}
 
 Provide an evaluation for each candidate, including pros, cons, and a score from 1-10 on feasibility and impact.
+Use the full 1-10 range and differentiate the candidates: penalize concepts that are vague, hard to manufacture, or ignore the problem's numeric constraints; reward concrete geometry/material choices with a clear causal link to the requirements.
 Respond ONLY with pure JSON (no markdown, no ```), with a single field:
 evaluations (list of objects with fields: candidate_name, pros (list), cons (list), score (int 1-10)).""",
             meter,

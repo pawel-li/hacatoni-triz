@@ -97,6 +97,39 @@ BIOMIMICRY_DB = [
 ]
 
 
+def derive_function_query(
+    problem: str, meter: GeminiCostMeter | None = None
+) -> tuple[str, str]:
+    """Derive a Polish functional-requirements query from the problem statement.
+
+    Returns (query, source) where source is "llm" or "default". The query is
+    used for TF-IDF matching against the Polish biomimicry DB corpus, so it
+    must be written in plain Polish without diacritics.
+    """
+    try:
+        parsed = json.loads(generate_json(
+            f"""Jestes analitykiem biomimetyki. Przeczytaj opis problemu i wypisz funkcje,
+jakie musi pelnic rozwiazanie, jako krotka lista fraz po polsku, BEZ polskich znakow
+diakrytycznych (pisz np. "wytrzymalosc", nie "wytrzymałość").
+
+Skup sie na funkcjach mechanicznych, strukturalnych i materialowych, np.:
+wytrzymalosc konstrukcyjna, sztywnosc, amortyzacja uderzen, minimalna masa materialu,
+ochrona przed wilgocia, biodegradacja, rozpraszanie sil. Nie opisuj branzy ani produktu.
+
+Problem: {problem}
+
+Odpowiedz WYLACZNIE czystym JSON (bez markdown, bez ```), z polem:
+function_query (string: 3-6 fraz oddzielonych przecinkami).""",
+            meter=meter,
+        ))
+        query = str(parsed.get("function_query", "")).strip()
+        if query:
+            return query, "llm"
+    except Exception:  # noqa: BLE001
+        pass
+    return DEFAULT_FUNCTION_QUERY, "default"
+
+
 def stream_biomimicry_run(
     problem: str,
     function_query: str | None = None,
@@ -106,7 +139,7 @@ def stream_biomimicry_run(
 ) -> Iterator[dict[str, Any]]:
     """Yield JSON-serializable events for a biomimicry prompt run."""
     normalized_problem = problem.strip()
-    normalized_query = (function_query or DEFAULT_FUNCTION_QUERY).strip()
+    provided_query = (function_query or "").strip()
     cost_meter = meter or GeminiCostMeter()
 
     yield _event(
@@ -114,10 +147,23 @@ def stream_biomimicry_run(
         "Biomimicry run started.",
         {
             "problem": normalized_problem,
-            "functionQuery": normalized_query,
+            **({"functionQuery": provided_query} if provided_query else {}),
             "model": cost_meter.model,
             "provider": cost_meter.provider,
         },
+    )
+
+    if provided_query:
+        normalized_query, query_source = provided_query, "provided"
+    else:
+        yield _event("log", "Deriving function query from the problem statement...")
+        normalized_query, query_source = derive_function_query(
+            normalized_problem, cost_meter
+        )
+    yield _event(
+        "function_query",
+        f"Function query: {normalized_query}",
+        {"functionQuery": normalized_query, "functionQuerySource": query_source},
     )
     yield _event(
         "database_loaded",
@@ -342,9 +388,9 @@ def _build_genai_client():
 def _generate_with_gemini(
     client, problem: str, entry: dict[str, str], meter: GeminiCostMeter
 ) -> dict[str, str]:
-    prompt = f"""Jestes inzynierem projektujacym ekologiczne opakowania.
+    prompt = f"""Jestes doswiadczonym inzynierem materialowym i konstruktorem.
 
-Problem: {problem}
+Problem do rozwiazania: {problem}
 
 Mechanizm z natury do wykorzystania jako inspiracja:
 - Organizm: {entry["organism"]}
@@ -352,9 +398,15 @@ Mechanizm z natury do wykorzystania jako inspiracja:
 - Funkcja: {entry["function"]}
 - Zasada dzialania: {entry["principle"]}
 
-Zaproponuj JEDEN konkretny, wdrozalny koncept opakowania inspirowany tym mechanizmem.
+Zaproponuj JEDEN konkretny, wdrozalny koncept rozwiazania inspirowany tym mechanizmem.
+Wymagania:
+- odnies sie wprost do wymagan i liczb z opisu problemu (np. udzwig, masa, koszt),
+- podaj konkretny material ORAZ strukture/geometrie i wyjasnij, jak przenosza zasade
+  dzialania mechanizmu na rozwiazanie problemu,
+- zero ogolnikow marketingowych; koncept ma byc mozliwy do prototypowania od reki.
+Napisz tytul i opis w tym samym jezyku, w ktorym sformulowano problem.
 Odpowiedz WYLACZNIE czystym JSON (bez markdown, bez ```), z polami:
-tytul (krotki, 3-6 slow) i opis (2-3 zdania, konkretnie jak dziala i z jakiego materialu)."""
+tytul (krotki, 3-6 slow) i opis (3-4 zdania)."""
 
     return json.loads(generate_json(prompt, meter=meter, client=client))
 

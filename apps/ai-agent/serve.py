@@ -70,10 +70,11 @@ class Handler(BaseHTTPRequestHandler):
                 for event in stream_biomimicry_run(prompt, function_query):
                     self._write_sse_event(event)
             self.close_connection = True
-        except BrokenPipeError:
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            self.close_connection = True
             return
         except Exception as exc:  # noqa: BLE001
-            if not self.wfile.closed:
+            try:
                 self._write_sse_event(
                     {
                         "id": "stream-error",
@@ -83,6 +84,8 @@ class Handler(BaseHTTPRequestHandler):
                         "payload": {"detail": str(exc)},
                     }
                 )
+            except OSError:
+                self.close_connection = True
 
     def _read_json_body(self):
         content_length = int(self.headers.get("Content-Length", "0"))
