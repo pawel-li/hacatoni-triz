@@ -1,0 +1,13 @@
+node_modules
+dist
+tmp
+coverage
+reports
+.git
+.nx
+.venv
+**/__pycache__
+prisma/dev.db
+json-server
+apps/frontend-e2e
+apps/api-e2e

@@ -15,10 +15,10 @@ import { PromptApiService } from '../prompts/data/prompt-api.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main
-      class="min-h-dvh overflow-hidden bg-[#0f1110] px-5 pb-6 pt-3 text-[#efe8da] sm:px-8 sm:pt-4 lg:grid lg:grid-cols-2 lg:items-center lg:px-12"
+      class="flex h-dvh flex-col overflow-hidden bg-[#0f1110] px-5 pb-6 pt-3 text-[#efe8da] sm:px-8 sm:pt-4 lg:grid lg:grid-cols-2 lg:items-center lg:px-12"
       aria-label="Home"
     >
-      <section class="flex min-h-[calc(100dvh-2.25rem)] w-full items-center justify-center sm:min-h-[calc(100dvh-2.5rem)]" aria-label="Prompt form">
+      <section class="flex min-h-0 w-full flex-1 items-center justify-center" aria-label="Prompt form">
         <nw-trizz-card>
           <!-- Prompt form -->
           <form

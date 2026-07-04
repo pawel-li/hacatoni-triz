@@ -1,0 +1,92 @@
+substitutions:
+  _REGION: europe-west1
+  _REPO: europe-west1-docker.pkg.dev/hackaton-501316/apps
+
+steps:
+  # Build images (in parallel)
+  - id: build-api
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['-']
+    args: [build, -t, '${_REPO}/api:$BUILD_ID', -t, '${_REPO}/api:latest', -f, apps/api/Dockerfile, '.']
+
+  - id: build-frontend
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['-']
+    args: [build, -t, '${_REPO}/frontend:$BUILD_ID', -t, '${_REPO}/frontend:latest', -f, apps/frontend/Dockerfile, '.']
+
+  - id: build-ai-agent
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['-']
+    args: [build, -t, '${_REPO}/ai-agent:$BUILD_ID', -t, '${_REPO}/ai-agent:latest', -f, apps/ai-agent/Dockerfile, '.']
+
+  # Push images
+  - id: push-api
+    name: gcr.io/cloud-builders/docker
+    waitFor: [build-api]
+    args: [push, --all-tags, '${_REPO}/api']
+
+  - id: push-frontend
+    name: gcr.io/cloud-builders/docker
+    waitFor: [build-frontend]
+    args: [push, --all-tags, '${_REPO}/frontend']
+
+  - id: push-ai-agent
+    name: gcr.io/cloud-builders/docker
+    waitFor: [build-ai-agent]
+    args: [push, --all-tags, '${_REPO}/ai-agent']
+
+  # Deploy API
+  - id: deploy-api
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    waitFor: [push-api]
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - api
+      - --image=${_REPO}/api:$BUILD_ID
+      - --region=${_REGION}
+      - --allow-unauthenticated
+      - --port=8080
+
+  # Deploy ai-agent
+  - id: deploy-ai-agent
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    waitFor: [push-ai-agent]
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ai-agent
+      - --image=${_REPO}/ai-agent:$BUILD_ID
+      - --region=${_REGION}
+      - --allow-unauthenticated
+      - --port=8080
+
+  # Deploy frontend, wiring the API URL into the nginx proxy
+  - id: deploy-frontend
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    waitFor: [push-frontend, deploy-api]
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        API_URL=$(gcloud run services describe api --region=${_REGION} --format='value(status.url)')
+        gcloud run deploy frontend \
+          --image=${_REPO}/frontend:$BUILD_ID \
+          --region=${_REGION} \
+          --allow-unauthenticated \
+          --port=8080 \
+          --set-env-vars=API_URL=$$API_URL
+
+images:
+  - '${_REPO}/api:$BUILD_ID'
+  - '${_REPO}/api:latest'
+  - '${_REPO}/frontend:$BUILD_ID'
+  - '${_REPO}/frontend:latest'
+  - '${_REPO}/ai-agent:$BUILD_ID'
+  - '${_REPO}/ai-agent:latest'
+
+options:
+  machineType: E2_HIGHCPU_8
+  logging: CLOUD_LOGGING_ONLY
