@@ -24,7 +24,7 @@ export type RunCardNodeData = {
   imports: [NgDiagramPortComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <article [class]="'run-card run-card--' + node().data.variant" role="article">
+    <article [class]="'run-card run-card--' + node().data.variant">
       <ng-diagram-port id="port-top" side="top" type="target" />
       @if (node().data.variant === 'best') {
         <span class="run-card__star" aria-hidden="true">★</span>

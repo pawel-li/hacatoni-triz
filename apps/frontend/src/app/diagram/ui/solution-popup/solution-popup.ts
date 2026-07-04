@@ -1,9 +1,11 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
   inject,
   effect,
   signal,
+  viewChild,
 } from '@angular/core';
 import { DiagramStateService } from '../../data/diagram-state.service';
 
@@ -18,6 +20,7 @@ import { DiagramStateService } from '../../data/diagram-state.service';
         aria-modal="true"
         [attr.aria-label]="'Solution for ' + popup.label"
         (click)="onBackdropClick($event)"
+        (keydown.escape)="diagramState.closePopup()"
       >
         <div class="popup" (click)="$event.stopPropagation()">
           <!-- Score ring -->
@@ -47,6 +50,7 @@ import { DiagramStateService } from '../../data/diagram-state.service';
           <p class="popup__solution">{{ popup.solution }}</p>
 
           <button
+            #closeBtn
             class="popup__close"
             (click)="diagramState.closePopup()"
             aria-label="Close solution popup"
@@ -177,6 +181,11 @@ import { DiagramStateService } from '../../data/diagram-state.service';
       border-color: #111312;
     }
 
+    .popup__close:focus-visible {
+      outline: 2px solid #111312;
+      outline-offset: 3px;
+    }
+
     @keyframes overlayIn {
       from { opacity: 0; }
       to { opacity: 1; }
@@ -200,6 +209,7 @@ export class SolutionPopupComponent {
   readonly animatedScore = signal(0);
   readonly dashOffset = signal(263.9);
 
+  private readonly closeBtnRef = viewChild<ElementRef<HTMLButtonElement>>('closeBtn');
   private animationFrame: number | null = null;
 
   constructor() {
@@ -207,6 +217,8 @@ export class SolutionPopupComponent {
       const popup = this.diagramState.activePopup();
       if (popup) {
         this.startScoreAnimation(popup.score);
+        // Auto-focus the close button after the view renders
+        setTimeout(() => this.closeBtnRef()?.nativeElement.focus(), 0);
       } else {
         this.animatedScore.set(0);
         this.dashOffset.set(263.9);

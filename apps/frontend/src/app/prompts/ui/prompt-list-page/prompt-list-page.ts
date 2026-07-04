@@ -92,6 +92,7 @@ const PAGE_SIZE = 12;
               <nw-trizz-card [contentOnly]="true">
                 <a
                   [routerLink]="['/prompts', prompt.id]"
+                  [attr.aria-label]="'View prompt: ' + (prompt.text.length > 60 ? prompt.text.substring(0, 60) + '…' : prompt.text)"
                   class="block space-y-2 whitespace-pre-wrap text-[0.95rem] leading-7 text-[#111312] outline-none [overflow-wrap:anywhere] focus-visible:ring-4 focus-visible:ring-[#0b5f86]/30"
                 >
                   <span class="inline-block border border-dotted border-[#111312]/45 px-2 py-0.5 text-[0.62rem] font-bold uppercase tracking-[0.08em] text-[#2e332f]">

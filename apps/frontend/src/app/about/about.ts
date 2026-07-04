@@ -16,8 +16,8 @@ import { RouterModule } from '@angular/router';
           ← Back
         </a>
 
-        <section class="border-2 border-[#efe8da] bg-[#f4f2e8] px-6 py-7 text-[#111312] shadow-[0_18px_42px_rgb(0_0_0_/_42%)] sm:px-8 sm:py-9">
-          <h1 class="font-soviet m-0 text-4xl font-extrabold leading-none sm:text-5xl">
+        <section class="border-2 border-[#efe8da] bg-[#f4f2e8] px-6 py-7 text-[#111312] shadow-[0_18px_42px_rgb(0_0_0_/_42%)] sm:px-8 sm:py-9" aria-labelledby="about-heading">
+          <h1 id="about-heading" class="font-soviet m-0 text-4xl font-extrabold leading-none sm:text-5xl">
             O nas
           </h1>
           <p class="mt-5 text-base leading-7">

@@ -44,7 +44,7 @@ import { DiagramStateService } from '../../data/diagram-state.service';
       <button
         class="trizz-node__btn"
         (click)="onViewSolution()"
-        aria-label="View solution"
+        [attr.aria-label]="'View solution for ' + node().data.label"
         type="button"
       >
         View Solution →

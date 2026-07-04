@@ -21,7 +21,7 @@ import { DiagramStateService } from '../../data/diagram-state.service';
   providers: [provideNgDiagram(), DiagramStateService],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="page" aria-label="TRIZ Diagram">
+    <div class="page">
       <!-- Header -->
       <header class="page__header">
         <a routerLink="/" class="page__back" aria-label="Back to home">← Back</a>
@@ -74,6 +74,11 @@ import { DiagramStateService } from '../../data/diagram-state.service';
       text-decoration: none;
       transition: color 0.2s;
       white-space: nowrap;
+    }
+
+    .page__back:focus-visible {
+      outline: 2px solid rgba(244, 242, 232, 0.6);
+      outline-offset: 3px;
     }
 
     .page__back:hover {

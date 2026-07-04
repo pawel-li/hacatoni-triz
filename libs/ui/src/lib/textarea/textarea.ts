@@ -15,6 +15,7 @@ let _nextId = 0;
   template: `
     <form
       class="my-auto mx-1 flex items-center gap-3 rounded-none border border-[#282d29] bg-[#070908] px-3 py-3 shadow-[inset_0_0_0_1px_rgb(255_255_255_/_3%)]"
+      [attr.aria-label]="submitLabel()"
       (submit)="onSubmit($event)"
     >
       <textarea
@@ -22,6 +23,7 @@ let _nextId = 0;
         [name]="name() || textareaId()"
         [attr.maxlength]="maxlength()"
         [placeholder]="placeholder()"
+        [attr.aria-label]="placeholder()"
         [value]="value()"
         (input)="value.set($any($event.target).value)"
         class="min-h-[58px] flex-1 resize-none overflow-y-auto border-none bg-transparent px-1 py-2 text-[0.8rem] leading-tight text-[#f5f5ed] outline-none placeholder:text-[#8f958f]"
@@ -30,7 +32,7 @@ let _nextId = 0;
 
       <button
         type="submit"
-        class="inline-flex h-9 w-9 items-center justify-center rounded-none bg-[#2d7ff9] text-white transition-colors hover:bg-[#4690ff] disabled:cursor-not-allowed disabled:bg-[#2a3b5b] disabled:text-[#7f90a8]"
+        class="inline-flex h-9 w-9 items-center justify-center rounded-none bg-[#2d7ff9] text-white transition-colors hover:bg-[#4690ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2d7ff9] focus-visible:ring-offset-2 focus-visible:ring-offset-[#070908] disabled:cursor-not-allowed disabled:bg-[#2a3b5b] disabled:text-[#7f90a8]"
         [disabled]="!value().trim()"
         [attr.aria-label]="submitLabel()"
       >

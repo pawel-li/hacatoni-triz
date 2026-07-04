@@ -35,12 +35,13 @@ import { PromptApiService } from '../prompts/data/prompt-api.service';
               rows="3"
               [disabled]="submitting()"
               placeholder="Wklej swój problem"
+              aria-label="Describe your problem"
               class="w-full resize-none rounded-none border border-dotted border-[rgba(17,19,18,0.35)] bg-transparent px-4 py-3 text-sm text-[#111312] font-['Inter'] placeholder:text-[rgba(17,19,18,0.45)] focus:border-[rgba(17,19,18,0.7)] focus:outline-none transition-colors duration-200 disabled:opacity-40"
               aria-required="true"
             ></textarea>
 
             <!-- Method selection (toggle buttons) -->
-            <div class="flex flex-col gap-2">
+            <div class="flex flex-col gap-2" role="group" aria-label="Analysis method">
               <div class="grid grid-cols-2 gap-2">
                 <button
                   type="button"
