@@ -14,6 +14,7 @@ import { PromptNodeData } from '../../data/types';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="prompt-node" role="article" aria-label="Problem prompt">
+      <ng-diagram-port id="port-top" side="top" type="target" />
       <div class="prompt-node__badge">PROMPT</div>
       <h2 class="prompt-node__title">{{ node().data.label }}</h2>
       <p class="prompt-node__subtitle">{{ node().data.subtitle }}</p>

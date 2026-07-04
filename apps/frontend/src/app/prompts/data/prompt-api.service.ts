@@ -2,7 +2,7 @@ import { inject, Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { API_URL } from '../../api-url.token';
-import { Prompt, PromptListResponse } from './types';
+import { Prompt, PromptListResponse, PromptRunEvent } from './types';
 
 @Injectable({ providedIn: 'root' })
 export class PromptApiService {
@@ -31,5 +31,34 @@ export class PromptApiService {
 
   createPrompt(text: string): Observable<Prompt> {
     return this.http.post<Prompt>(`${this.apiUrl}/prompts`, { text });
+  }
+
+  streamPromptRun(id: string): Observable<PromptRunEvent> {
+    return new Observable<PromptRunEvent>((subscriber) => {
+      const eventSource = new EventSource(
+        `${this.apiUrl}/prompts/${encodeURIComponent(id)}/run/stream`,
+      );
+
+      eventSource.onmessage = (message) => {
+        try {
+          const event = JSON.parse(message.data) as PromptRunEvent;
+          subscriber.next(event);
+
+          if (event.type === 'run_completed' || event.type === 'error') {
+            subscriber.complete();
+            eventSource.close();
+          }
+        } catch (error) {
+          subscriber.error(error);
+        }
+      };
+
+      eventSource.onerror = () => {
+        subscriber.error(new Error('Prompt run stream disconnected.'));
+        eventSource.close();
+      };
+
+      return () => eventSource.close();
+    });
   }
 }

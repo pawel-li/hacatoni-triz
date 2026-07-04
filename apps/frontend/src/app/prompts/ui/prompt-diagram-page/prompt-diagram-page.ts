@@ -1,10 +1,14 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
+  Injector,
   computed,
+  effect,
   inject,
+  signal,
 } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import {
   NgDiagramComponent,
@@ -12,10 +16,13 @@ import {
   initializeModel,
   provideNgDiagram,
 } from 'ng-diagram';
+import type { Edge, ModelAdapter, Node } from 'ng-diagram';
 import { catchError, map, of, startWith, switchMap } from 'rxjs';
 import { PromptNodeComponent } from '../../../diagram/ui/prompt-node/prompt-node';
 import { PromptApiService } from '../../data/prompt-api.service';
-import { Prompt } from '../../data/types';
+import { Prompt, PromptRunEvent } from '../../data/types';
+
+type DiagramNode = Node<{ label: string; subtitle: string }>;
 
 type PromptPageState = {
   loading: boolean;
@@ -67,14 +74,48 @@ type PromptPageState = {
       }
 
       <section
-        class="mx-auto mt-4 flex min-h-[60dvh] w-full max-w-6xl flex-1 flex-col border border-dotted border-[#efe8da]/55"
-        aria-label="Prompt diagram"
+        class="mx-auto mt-4 grid min-h-[68dvh] w-full max-w-6xl flex-1 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_340px]"
+        aria-label="Prompt run workspace"
       >
-        <ng-diagram
-          class="block h-full w-full flex-1"
-          [model]="diagramModel"
-          [nodeTemplateMap]="nodeTemplateMap"
-        />
+        <div class="h-[68dvh] min-h-[520px] overflow-hidden border border-dotted border-[#efe8da]/55" aria-label="Live prompt diagram">
+          <ng-diagram
+            class="block h-full w-full"
+            [model]="diagramModel"
+            [nodeTemplateMap]="nodeTemplateMap"
+          />
+        </div>
+
+        <aside class="flex min-h-[340px] flex-col border border-dotted border-[#efe8da]/55" aria-label="Prompt run logs">
+          <div class="border-b border-dotted border-[#efe8da]/35 px-4 py-3">
+            <p class="m-0 text-xs font-bold uppercase tracking-[0.08em] text-[#efe8da]/55">Status</p>
+            <p class="m-0 mt-1 text-lg font-bold text-[#efe8da]">{{ runStatus() }}</p>
+            @if (agentProblem(); as problem) {
+              <p class="m-0 mt-3 text-xs font-bold uppercase tracking-[0.08em] text-[#efe8da]/45">Agent input</p>
+              <p class="m-0 mt-1 max-h-24 overflow-auto whitespace-pre-wrap text-sm leading-5 text-[#efe8da]/75">{{ problem }}</p>
+            }
+          </div>
+
+          <div class="min-h-0 flex-1 space-y-3 overflow-auto px-4 py-4" aria-live="polite">
+            @if (logs().length) {
+              @for (log of logs(); track log.id) {
+                <article class="border-l-2 border-[#efe8da]/35 pl-3">
+                  <p class="m-0 text-[0.68rem] font-bold uppercase tracking-[0.08em] text-[#efe8da]/45">
+                    {{ log.type }} · {{ log.timestamp }}
+                  </p>
+                  <p class="m-0 mt-1 text-sm leading-6 text-[#efe8da]/82">{{ log.message }}</p>
+                </article>
+              }
+            } @else {
+              <p class="m-0 text-sm leading-6 text-[#efe8da]/55">Waiting for ai-agent events...</p>
+            }
+
+            @if (streamError(); as err) {
+              <p class="m-0 border border-[#a43f3f] bg-[#a43f3f]/10 px-3 py-2 text-sm text-[#ffd1d1]" role="alert">
+                {{ err }}
+              </p>
+            }
+          </div>
+        </aside>
       </section>
     </main>
   `,
@@ -94,27 +135,17 @@ type PromptPageState = {
 })
 export class PromptDiagramPageComponent {
   private readonly route = inject(ActivatedRoute);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly injector = inject(Injector);
   private readonly promptApi = inject(PromptApiService);
+  private activeRunId: string | null = null;
 
   readonly nodeTemplateMap = new NgDiagramNodeTemplateMap([
     ['prompt', PromptNodeComponent],
   ]);
 
-  readonly diagramModel = initializeModel({
-    nodes: [
-      {
-        id: 'prompt-node',
-        type: 'prompt',
-        position: { x: 260, y: 180 },
-        data: {
-          label: 'Prompt payload ready for processing',
-          subtitle: 'Source node for TRIZ processing and backend SSE log attachment',
-        },
-        draggable: true,
-      },
-    ],
-    edges: [],
-  });
+  readonly runEvents = signal<PromptRunEvent[]>([]);
+  readonly streamError = signal<string | null>(null);
 
   private readonly state = toSignal(
     this.route.paramMap.pipe(
@@ -153,4 +184,207 @@ export class PromptDiagramPageComponent {
   readonly loading = computed(() => this.state().loading);
   readonly error = computed(() => this.state().error);
   readonly promptText = computed(() => this.state().prompt?.text ?? null);
+  readonly promptId = computed(() => this.state().prompt?.id ?? null);
+  readonly runStatus = computed(() => {
+    const latestEvent = this.runEvents().at(-1);
+    if (this.streamError()) return 'Stream disconnected';
+    if (!latestEvent) return 'Waiting for run';
+    if (latestEvent.type === 'run_completed') return 'Completed';
+    if (latestEvent.type === 'error') return 'Failed';
+    return 'Running';
+  });
+  readonly logs = computed(() =>
+    this.runEvents().map((event) => ({
+      id: event.id,
+      timestamp: event.timestamp,
+      type: event.type,
+      message: event.message,
+    })),
+  );
+  readonly agentProblem = computed(
+    () =>
+      this.runEvents().find((event) => event.type === 'run_started')?.payload
+        .problem ?? null,
+  );
+  readonly diagramModel: ModelAdapter = initializeModel(
+    {
+      nodes: this.diagramNodes(),
+      edges: this.diagramEdges(),
+    },
+    this.injector,
+  );
+
+  constructor() {
+    effect(() => {
+      this.diagramModel.updateNodes(this.diagramNodes());
+      this.diagramModel.updateEdges(this.diagramEdges());
+    });
+
+    effect(() => {
+      const promptId = this.promptId();
+      if (!promptId || promptId === this.activeRunId) return;
+
+      this.activeRunId = promptId;
+      this.runEvents.set([]);
+      this.streamError.set(null);
+
+      this.promptApi
+        .streamPromptRun(promptId)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (event) => this.runEvents.update((events) => [...events, event]),
+          error: () =>
+            this.streamError.set('Prompt run stream disconnected unexpectedly.'),
+        });
+    });
+  }
+
+  private diagramNodes(): DiagramNode[] {
+    const events = this.runEvents();
+    const promptLabel = this.promptText()?.slice(0, 120) ?? 'Loading prompt...';
+    const agentProblem = events.find((event) => event.type === 'run_started')?.payload
+      .problem;
+    const nodes: DiagramNode[] = [
+      {
+        id: 'prompt-node',
+        type: 'prompt',
+        position: { x: 300, y: 40 },
+        data: {
+          label: promptLabel,
+          subtitle: agentProblem
+            ? `Agent received: ${agentProblem.slice(0, 90)}`
+            : 'Saved prompt will be sent to ai-agent',
+        },
+        draggable: true,
+      },
+    ];
+
+    if (events.some((event) => event.type === 'ranking')) {
+      nodes.push({
+        id: 'ranking-node',
+        type: 'prompt',
+        position: { x: 300, y: 240 },
+        data: {
+          label: 'Mechanism ranking ready',
+          subtitle: 'TF-IDF similarity matched biomimicry mechanisms',
+        },
+        draggable: true,
+      });
+    }
+
+    const mechanismEvents = events.filter(
+      (event) => event.type === 'mechanism_selected' && event.payload.mechanism,
+    );
+    mechanismEvents.forEach((event, index) => {
+      nodes.push({
+        id: `mechanism-${event.payload.mechanism?.id ?? index}`,
+        type: 'prompt',
+        position: { x: 40 + index * 300, y: 440 },
+        data: {
+          label: event.payload.mechanism?.organism ?? 'Selected mechanism',
+          subtitle: event.payload.mechanism?.mechanism ?? event.message,
+        },
+        draggable: true,
+      });
+    });
+
+    const candidateEvents = events.filter(
+      (event) => event.type === 'candidate' && event.payload.candidate,
+    );
+    candidateEvents.forEach((event, index) => {
+      nodes.push({
+        id: `candidate-${event.payload.candidate?.id ?? index}`,
+        type: 'prompt',
+        position: { x: 40 + index * 300, y: 650 },
+        data: {
+          label: event.payload.candidate?.tytul ?? 'Generated candidate',
+          subtitle: event.payload.candidate?.opis ?? event.message,
+        },
+        draggable: true,
+      });
+    });
+
+    const finalEvent = events.find(
+      (event) => event.type === 'run_completed' || event.type === 'error',
+    );
+    if (finalEvent) {
+      nodes.push({
+        id: 'final-node',
+        type: 'prompt',
+        position: { x: 300, y: 880 },
+        data: {
+          label: finalEvent.type === 'error' ? 'Run failed' : 'Run completed',
+          subtitle: finalEvent.message,
+        },
+        draggable: true,
+      });
+    }
+
+    return nodes;
+  }
+
+  private diagramEdges(): Edge[] {
+    const events = this.runEvents();
+    const edges: Edge[] = [];
+
+    if (events.some((event) => event.type === 'ranking')) {
+      edges.push({
+        id: 'edge-prompt-ranking',
+        source: 'prompt-node',
+        sourcePort: 'port-bottom',
+        target: 'ranking-node',
+        targetPort: 'port-top',
+        routing: 'bezier',
+        data: {},
+      });
+    }
+
+    const mechanismEvents = events.filter(
+      (event) => event.type === 'mechanism_selected' && event.payload.mechanism,
+    );
+    mechanismEvents.forEach((event, index) => {
+      const mechanismId = `mechanism-${event.payload.mechanism?.id ?? index}`;
+      edges.push({
+        id: `edge-ranking-${mechanismId}`,
+        source: 'ranking-node',
+        sourcePort: 'port-bottom',
+        target: mechanismId,
+        targetPort: 'port-top',
+        routing: 'bezier',
+        data: {},
+      });
+    });
+
+    const candidateEvents = events.filter(
+      (event) => event.type === 'candidate' && event.payload.candidate,
+    );
+    candidateEvents.forEach((event, index) => {
+      const candidateId = `candidate-${event.payload.candidate?.id ?? index}`;
+      edges.push({
+        id: `edge-mechanism-${candidateId}`,
+        source: `mechanism-${event.payload.candidate?.id ?? index}`,
+        sourcePort: 'port-bottom',
+        target: candidateId,
+        targetPort: 'port-top',
+        routing: 'bezier',
+        data: {},
+      });
+    });
+
+    if (events.some((event) => event.type === 'run_completed' || event.type === 'error')) {
+      edges.push({
+        id: 'edge-final',
+        source: candidateEvents.at(-1)?.payload.candidate
+          ? `candidate-${candidateEvents.at(-1)?.payload.candidate?.id}`
+          : 'ranking-node',
+        sourcePort: 'port-bottom',
+        target: 'final-node',
+        targetPort: 'port-top',
+        routing: 'bezier',
+        data: {},
+      });
+    }
+
+    return edges;
+  }
 }

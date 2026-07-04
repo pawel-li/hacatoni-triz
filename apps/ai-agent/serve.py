@@ -4,6 +4,7 @@ import json
 import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
+from ai_agent.biomimicry import stream_biomimicry_run
 from ai_agent.hello import hello
 
 
@@ -15,6 +16,54 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def do_POST(self):
+        if self.path != "/run/stream":
+            self.send_error(404)
+            return
+
+        try:
+            payload = self._read_json_body()
+            prompt = str(payload.get("prompt", "")).strip()
+            function_query = payload.get("functionQuery")
+
+            if not prompt:
+                self.send_error(400, "Missing prompt")
+                return
+
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Connection", "close")
+            self.send_header("X-Accel-Buffering", "no")
+            self.end_headers()
+
+            for event in stream_biomimicry_run(prompt, function_query):
+                self._write_sse_event(event)
+            self.close_connection = True
+        except BrokenPipeError:
+            return
+        except Exception as exc:  # noqa: BLE001
+            if not self.wfile.closed:
+                self._write_sse_event(
+                    {
+                        "id": "stream-error",
+                        "type": "error",
+                        "timestamp": "",
+                        "message": "Ai-agent stream failed.",
+                        "payload": {"detail": str(exc)},
+                    }
+                )
+
+    def _read_json_body(self):
+        content_length = int(self.headers.get("Content-Length", "0"))
+        raw_body = self.rfile.read(content_length) if content_length else b"{}"
+        return json.loads(raw_body.decode("utf-8") or "{}")
+
+    def _write_sse_event(self, event):
+        frame = "data: " + json.dumps(event, ensure_ascii=False) + "\n\n"
+        self.wfile.write(frame.encode("utf-8"))
+        self.wfile.flush()
 
 
 def main():
