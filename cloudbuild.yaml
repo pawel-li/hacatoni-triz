@@ -35,20 +35,6 @@ steps:
     waitFor: [build-ai-agent]
     args: [push, --all-tags, '${_REPO}/ai-agent']
 
-  # Deploy API
-  - id: deploy-api
-    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
-    waitFor: [push-api]
-    entrypoint: gcloud
-    args:
-      - run
-      - deploy
-      - api
-      - --image=${_REPO}/api:$BUILD_ID
-      - --region=${_REGION}
-      - --allow-unauthenticated
-      - --port=8080
-
   # Deploy ai-agent
   - id: deploy-ai-agent
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
@@ -62,6 +48,23 @@ steps:
       - --region=${_REGION}
       - --allow-unauthenticated
       - --port=8080
+      - --set-secrets=GOOGLE_API_KEY=GOOGLE_API_KEY:latest
+
+  # Deploy API
+  - id: deploy-api
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    waitFor: [push-api, deploy-ai-agent]
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        AI_AGENT_URL=$(gcloud run services describe ai-agent --region=${_REGION} --format='value(status.url)')
+        gcloud run deploy api \
+          --image=${_REPO}/api:$BUILD_ID \
+          --region=${_REGION} \
+          --allow-unauthenticated \
+          --port=8080 \
+          --set-env-vars=AI_AGENT_URL=$$AI_AGENT_URL
 
   # Deploy frontend, wiring the API URL into the nginx proxy
   - id: deploy-frontend

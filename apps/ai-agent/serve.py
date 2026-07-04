@@ -3,9 +3,26 @@
 import json
 import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
 
 from ai_agent.biomimicry import stream_biomimicry_run
 from ai_agent.hello import hello
+
+
+def _load_dotenv():
+    """Load repo-root .env into os.environ (without overriding existing vars)."""
+    env_path = Path(__file__).resolve().parents[2] / ".env"
+    if not env_path.is_file():
+        return
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -67,6 +84,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
+    _load_dotenv()
     port = int(os.environ.get("PORT", 8080))
     HTTPServer(("0.0.0.0", port), Handler).serve_forever()
 

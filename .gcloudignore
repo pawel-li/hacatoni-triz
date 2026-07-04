@@ -1,0 +1,17 @@
+.git
+.gitignore
+.gcloudignore
+.env
+.env.*
+node_modules
+coverage
+reports
+.nx/cache
+.nx/workspace-data
+.angular
+dist
+tmp
+out-tsc
+**/__pycache__/**
+**/*.pyc
+prisma/dev.db
