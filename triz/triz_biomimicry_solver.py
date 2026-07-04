@@ -171,7 +171,20 @@ def main():
     print(json.dumps(json.loads(selection), indent=2))
     print("\n" + "-"*50 + "\n")
     
-    print("Process Complete. The full reasoning trail is documented above.")
+    # Save the full reasoning trail to a JSON file for the frontend and PDF generation
+    output_data = {
+        "problem": problem_statement,
+        "contradiction": json.loads(contradiction),
+        "triz_candidates": json.loads(triz_solutions).get("candidates", []),
+        "biomimicry_candidates": json.loads(biomimicry_solutions).get("candidates", []),
+        "evaluation": json.loads(evaluations).get("evaluations", []),
+        "choice": json.loads(selection)
+    }
+    
+    with open("triz_biomimicry_results.json", "w") as f:
+        json.dump(output_data, f, indent=2)
+        
+    print("Process Complete. The full reasoning trail is saved to 'triz_biomimicry_results.json'.")
 
 if __name__ == "__main__":
     main()
